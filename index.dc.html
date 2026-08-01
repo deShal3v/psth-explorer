@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Spiking Explorer</title>
+<meta name="description" content="Interactive explorer for intracortical microelectrode-array spiking data from five BCI participants (Willett 2021 handwriting, Kunz 2025 speech).">
+<!-- Product analytics. Traffic (pageviews, referrers, countries) comes from Cloudflare
+     Web Analytics, enabled in the Cloudflare dashboard with no code here. This URL is
+     only for in-app interaction events and is same-origin, handled by the Pages
+     Function in functions/collect.js. Set it to "" to switch those off. -->
+<script>window.NSE_ANALYTICS_URL = "/collect";</script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#f5f6f8;color:#1a1d23;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  a{color:#0e7c86;text-decoration:none}
+  a:hover{color:#0a5c64}
+  ::selection{background:#cfe8ea}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .scy{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#cfd4db transparent}
+  .scy::-webkit-scrollbar{width:8px;height:8px}
+  .scy::-webkit-scrollbar-thumb{background:#cfd4db;border-radius:8px}
+  .scy::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div data-screen-label="BCI Explorer" style="height:100vh;display:flex;flex-direction:column;background:#f5f6f8">
+
+  <!-- ===================== TOP BAR ===================== -->
+  <div style="flex:0 0 auto;background:#ffffff;border-bottom:1px solid #e2e5ea;box-shadow:0 1px 2px rgba(16,24,40,.03)">
+    <!-- row 1 -->
+    <div style="display:flex;align-items:center;gap:16px;padding:11px 18px 10px 18px;border-bottom:1px solid #eef0f3">
+      <div style="display:flex;align-items:center;gap:11px;min-width:0">
+        <!-- participant switcher (dashed circle = choose participant) -->
+        <div style="position:relative;flex:0 0 auto">
+          <button onClick="{{ profile.toggle }}" style="{{ profile.ringStyle }}" style-hover="filter:brightness(1.05)" title="Choose participant">
+            <div style="{{ profile.dotStyle }}">{{ profile.initials }}</div>
+          </button>
+          <sc-if value="{{ profile.open }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ profile.toggle }}" style="position:fixed;inset:0;z-index:40"></div>
+            <div style="{{ profile.menuStyle }}">
+              <div style="font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9aa0a8;padding:6px 10px 7px">Participant</div>
+              <sc-for list="{{ users }}" as="u" hint-placeholder-count="2">
+                <div onClick="{{ u.onClick }}" style="{{ u.rowStyle }}" style-hover="background:#f2f4f7">
+                  <div style="{{ u.dotStyle }}">{{ u.short }}</div>
+                  <div style="flex:1;min-width:0;line-height:1.2">
+                    <div style="font-size:12px;font-weight:600;color:#1a1d23;white-space:nowrap">{{ u.full }}</div>
+                    <div class="mono" style="font-size:9.5px;color:#9aa0a8;white-space:nowrap">{{ u.sub }}</div>
+                  </div>
+                  <span style="{{ u.checkStyle }}">✓</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+        <div style="line-height:1.15;min-width:0">
+          <div style="font-size:13px;font-weight:700;letter-spacing:-0.01em;white-space:nowrap">Neural Spiking Explorer</div>
+          <div class="mono" style="font-size:10px;color:#9aa0a8;letter-spacing:.02em">{{ brandSub }}</div>
+        </div>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="mono" style="font-size:10px;color:#9aa0a8;letter-spacing:.06em;text-transform:uppercase;margin-right:2px">View</span>
+        <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
+          <button style="{{ m.style }}" style-hover="filter:brightness(0.98)" onClick="{{ m.onClick }}">{{ m.label }}</button>
+        </sc-for>
+        <button style="{{ zToggle.style }}" onClick="{{ zToggle.onClick }}" title="Z-score each electrode over the whole session, then apply the chosen view operation">
+          <span style="font-size:13px;line-height:1">{{ zToggle.dot }}</span> z-score
+        </button>
+        <div style="position:relative">
+          <button style="{{ smoothCtl.btnStyle }}" onClick="{{ smoothCtl.toggle }}" title="Absolute view only: extra processing of the trace (slow-wave band-pass or Gaussian smoothing)">
+            <span style="font-size:13px;line-height:1">{{ smoothCtl.dot }}</span> {{ smoothCtl.label }} ▾
+          </button>
+          <sc-if value="{{ smoothCtl.open }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ smoothCtl.toggle }}" style="position:fixed;inset:0;z-index:55"></div>
+            <div style="{{ smoothCtl.menuStyle }}">
+              <sc-for list="{{ smoothCtl.items }}" as="o" hint-placeholder-count="3">
+                <div onClick="{{ o.onClick }}" style="{{ o.rowStyle }}" style-hover="background:#f2f4f7">
+                  <div style="min-width:0;line-height:1.25">
+                    <div style="font-size:12px;font-weight:600;color:#1a1d23">{{ o.name }}</div>
+                    <div class="mono" style="font-size:9px;color:#9aa0a8">{{ o.sub }}</div>
+                  </div>
+                  <span style="{{ o.checkStyle }}">✓</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="width:1px;height:22px;background:#e2e5ea"></div>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="mono" style="font-size:10px;color:#9aa0a8;letter-spacing:.06em;text-transform:uppercase;margin-right:2px">Live src</span>
+        <sc-for list="{{ sources }}" as="s" hint-placeholder-count="2">
+          <button style="{{ s.style }}" onClick="{{ s.onClick }}">{{ s.label }}</button>
+        </sc-for>
+      </div>
+
+      <button style="{{ absToggle.style }}" onClick="{{ absToggle.onClick }}" title="Show / hide the raw absolute running trace">
+        <span style="font-size:13px;line-height:1">{{ absToggle.dot }}</span> raw trace
+      </button>
+    </div>
+
+    <!-- row 2 : transport + timeline -->
+    <div style="display:flex;align-items:center;gap:16px;padding:10px 18px 11px 18px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <button style="{{ transport.stepBackStyle }}" onClick="{{ transport.stepBack }}" title="Step back one 20 ms bin">‹</button>
+        <button style="{{ transport.playStyle }}" onClick="{{ transport.togglePlay }}" title="Play / pause (space)">{{ transport.playLabel }}</button>
+        <button style="{{ transport.stepFwdStyle }}" onClick="{{ transport.stepFwd }}" title="Step forward one 20 ms bin">›</button>
+        <button style="{{ transport.stopStyle }}" onClick="{{ transport.stop }}" title="Stop and rewind to window start">■</button>
+        <button style="{{ transport.loopStyle }}" onClick="{{ transport.toggleLoop }}" title="Loop within window">↻</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:4px">
+        <sc-for list="{{ speeds }}" as="sp" hint-placeholder-count="3">
+          <button style="{{ sp.style }}" onClick="{{ sp.onClick }}">{{ sp.label }}</button>
+        </sc-for>
+      </div>
+
+      <!-- timeline -->
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px;padding:0 4px">
+        <div ref="{{ rTlTrack }}" onPointerDown="{{ tl.onTrackDown }}" style="position:relative;height:26px;background:#f0f2f5;border:1px solid #e2e5ea;border-radius:6px;cursor:pointer;user-select:none">
+          <!-- window region -->
+          <div style="{{ tl.windowStyle }}"></div>
+          <!-- go-cue marker -->
+          <div style="{{ tl.goStyle }}"></div>
+          <!-- tick ghosts -->
+          <div style="position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,transparent 0,transparent 9px,rgba(0,0,0,.035) 9px,rgba(0,0,0,.035) 10px);border-radius:6px;pointer-events:none"></div>
+          <!-- playhead -->
+          <div ref="{{ rTlPlay }}" style="position:absolute;top:-3px;bottom:-3px;width:2px;background:#0e7c86;left:0%;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.6)"><div style="position:absolute;top:-4px;left:-3px;width:8px;height:8px;border-radius:50%;background:#0e7c86;border:1.5px solid #fff"></div></div>
+          <!-- start handle -->
+          <div onPointerDown="{{ tl.onStartDown }}" style="{{ tl.startHandleStyle }}"></div>
+          <!-- end handle -->
+          <div onPointerDown="{{ tl.onEndDown }}" style="{{ tl.endHandleStyle }}"></div>
+        </div>
+        <div class="mono" style="display:flex;justify-content:space-between;font-size:9.5px;color:#9aa0a8">
+          <span>{{ tlLo }}</span><span style="color:#e5484d;font-weight:600">{{ tlMid }}</span><span>{{ tlHi }}</span>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;min-width:120px">
+        <div ref="{{ rTime }}" class="mono" style="font-size:16px;font-weight:600;letter-spacing:-0.01em;line-height:1">−3000 ms</div>
+        <div ref="{{ rBin }}" class="mono" style="font-size:10px;color:#9aa0a8">bin 0 / 75</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN ===================== -->
+  <div style="flex:1;display:flex;min-height:0">
+
+    <!-- ---------- LEFT SIDEBAR ---------- -->
+    <div style="flex:0 0 306px;border-right:1px solid #e2e5ea;background:#fafbfc;display:flex;flex-direction:column;min-height:0">
+      <div style="padding:14px 16px 0 16px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:9px">Microelectrode Array</div>
+        <div style="display:flex;gap:5px;background:#eef0f3;padding:3px;border-radius:8px">
+          <sc-for list="{{ arrays }}" as="a" hint-placeholder-count="2">
+            <button style="{{ a.style }}" onClick="{{ a.onClick }}">
+              <div style="font-weight:700">{{ a.label }}</div>
+              <div class="mono" style="font-size:9px;opacity:.7">{{ a.sub }}</div>
+            </button>
+          </sc-for>
+        </div>
+        <button style="{{ meanBtn.style }}" style-hover="filter:brightness(0.98)" onClick="{{ meanBtn.onClick }}" title="Add a panel with the mean firing across all 96 electrodes of this array">{{ meanBtn.label }}</button>
+      </div>
+
+      <!-- grid -->
+      <div style="padding:16px">
+        <div style="position:relative">
+          <div style="{{ liveBadgeStyle }}"><span style="width:6px;height:6px;border-radius:50%;background:#e5484d;display:inline-block;animation:none"></span> LIVE</div>
+          <div ref="{{ rGridWrap }}" onPointerDown="{{ gridDown }}" style="{{ gridWrapStyle }}">
+            <sc-for list="{{ cells }}" as="c" hint-placeholder-count="64">
+              <div ref="{{ c.ref }}" data-ch="{{ c.ch }}" style="{{ c.style }}" style-hover="transform:scale(1.14);z-index:6;box-shadow:0 3px 10px rgba(16,24,40,.28)" onMouseEnter="{{ c.onEnter }}" onMouseMove="{{ c.onEnter }}" onMouseLeave="{{ c.onLeave }}">
+                <span style="position:relative;z-index:2">{{ c.label }}</span>
+                <sc-if value="{{ c.selected }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;inset:0;outline:2px solid #0e7c86;outline-offset:-2px;border-radius:3px;z-index:3;pointer-events:none;box-shadow:0 0 0 1.5px rgba(255,255,255,.85) inset"></div>
+                </sc-if>
+                <sc-if value="{{ c.noContact }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,#e6e8ec 0,#e6e8ec 3px,#dcdfe4 3px,#dcdfe4 6px);border-radius:3px;z-index:1"></div>
+                </sc-if>
+              </div>
+            </sc-for>
+            <div ref="{{ rBand }}" style="position:absolute;border:1.5px solid #0e7c86;background:rgba(14,124,134,.10);border-radius:3px;pointer-events:none;display:none;z-index:5"></div>
+          </div>
+        </div>
+
+        <!-- legend / colorbar -->
+        <div style="margin-top:13px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+            <span class="mono" style="font-size:9.5px;color:#9aa0a8;letter-spacing:.04em;text-transform:uppercase">{{ legend.title }}</span>
+            <span class="mono" style="font-size:9.5px;color:#6b7280">{{ legend.unit }}</span>
+          </div>
+          <div style="{{ legend.barStyle }}"></div>
+          <div class="mono" style="display:flex;justify-content:space-between;font-size:9.5px;color:#9aa0a8;margin-top:3px">
+            <span>{{ legend.lo }}</span><span>{{ legend.mid }}</span><span>{{ legend.hi }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- selection controls -->
+      <div style="margin-top:auto;padding:13px 16px;border-top:1px solid #e2e5ea;background:#fff;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div class="mono" style="font-size:15px;font-weight:600;color:#1a1d23;line-height:1">{{ selCount }}</div>
+          <div style="font-size:10.5px;color:#9aa0a8;margin-top:1px">{{ selWord }} selected</div>
+        </div>
+        <button style="{{ clearStyle }}" onClick="{{ clearSel }}">clear</button>
+      </div>
+    </div>
+
+    <!-- ---------- CENTER ---------- -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">
+      <div style="flex:0 0 auto;padding:13px 20px 11px 20px;display:flex;align-items:baseline;gap:12px;border-bottom:1px solid #eef0f3;background:#f5f6f8">
+        <div style="font-size:13px;font-weight:700;letter-spacing:-0.01em">Peri-Stimulus Time Histograms</div>
+        <div class="mono" style="font-size:10.5px;color:#9aa0a8">{{ centerSub }}</div>
+      </div>
+
+      <div class="scy" style="flex:1;min-height:0;position:relative;background:#f5f6f8">
+        <div ref="{{ rPanelsWrap }}" style="position:relative;padding:0 0 40px 0" onDragOver="{{ areaDragOver }}" onDrop="{{ areaDrop }}">
+          <!-- x-axis ruler (sticky) -->
+          <div style="position:sticky;top:0;z-index:6;display:grid;grid-template-columns:96px 1fr;background:#f5f6f8;border-bottom:1px solid #e2e5ea">
+            <div class="mono" style="display:flex;align-items:center;padding-left:10px;font-size:8.5px;letter-spacing:.04em;color:#b0b6bd;text-transform:uppercase">{{ rulerLabel }}</div>
+            <div class="mono" style="position:relative;height:22px;font-size:9.5px;color:#9aa0a8">
+              <sc-if value="{{ notAuto }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute;left:0;top:5px">{{ ruler.lo }}</span>
+                <span style="{{ ruler.cueStyle }}">cue</span>
+                <span style="{{ ruler.goStyle }}">GO</span>
+                <span style="position:absolute;right:8px;top:5px">{{ ruler.hi }}</span>
+              </sc-if>
+              <sc-if value="{{ autoAdv }}" hint-placeholder-val="{{ false }}">
+                <canvas ref="{{ rRuler }}" style="width:100%;height:22px;display:block"></canvas>
+              </sc-if>
+            </div>
+          </div>
+
+          <sc-if value="{{ hasPanels }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ panels }}" as="p" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-columns:96px 1fr;border-bottom:1px solid #e9ebef;background:#fff" onDragOver="{{ p.onDragOver }}" onDrop="{{ p.onDrop }}">
+                <div style="padding:9px 10px;border-right:1px solid #eef0f3;display:flex;flex-direction:column;justify-content:center;gap:2px;background:#fcfcfd">
+                  <div class="mono" style="font-size:12px;font-weight:600;color:#1a1d23">{{ p.chLabel }}</div>
+                  <div style="font-size:9.5px;color:#9aa0a8">{{ p.area }}</div>
+                  <div class="mono" style="font-size:10px;color:#0e7c86;font-weight:600">{{ p.mean }}</div>
+                  <button style="{{ p.tagStyle }}" style-hover="filter:brightness(0.97)" onClick="{{ p.onLock }}" title="{{ p.tagTitle }}">{{ p.tag }}</button>
+                  <div style="display:flex;gap:3px;margin-top:4px">
+                    <button style="{{ p.miniStyle }}" onClick="{{ p.onCollapse }}" title="Collapse">{{ p.chev }}</button>
+                    <button style="{{ p.miniStyle }}" onClick="{{ p.onUp }}" title="Move up">↑</button>
+                    <button style="{{ p.miniStyle }}" onClick="{{ p.onDown }}" title="Move down">↓</button>
+                    <button style="{{ p.miniStyle }}" onClick="{{ p.onRemove }}" title="Remove">✕</button>
+                  </div>
+                </div>
+                <sc-if value="{{ p.open }}" hint-placeholder-val="{{ true }}">
+                  <canvas ref="{{ p.ref }}" data-pkey="{{ p.key }}" onPointerDown="{{ panelScrub }}" onMouseMove="{{ panelHover }}" onMouseLeave="{{ panelHoverOut }}" style="width:100%;height:96px;display:block;cursor:crosshair"></canvas>
+                </sc-if>
+                <sc-if value="{{ p.collapsed }}" hint-placeholder-val="{{ false }}">
+                  <div class="mono" style="height:26px;display:flex;align-items:center;padding-left:12px;font-size:10px;color:#c0c4cb;background:#fbfbfc">collapsed</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ noPanels }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:70px 20px;text-align:center;color:#a7adb5">
+              <div style="font-size:14px;font-weight:600;color:#8a9099;margin-bottom:6px">No electrodes selected</div>
+              <div style="font-size:12px">Pause playback, then click or drag a box over the array grid to select channels.</div>
+            </div>
+          </sc-if>
+
+          <!-- shared playhead overlay -->
+          <div ref="{{ rPlayhead }}" style="position:absolute;top:22px;bottom:40px;width:1.5px;background:rgba(14,124,134,.55);left:0;pointer-events:none;z-index:5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- RIGHT SIDEBAR ---------- -->
+    <div style="flex:0 0 320px;border-left:1px solid #e2e5ea;background:#fafbfc;display:flex;flex-direction:column;min-height:0">
+
+      <!-- rest mode (its own option) -->
+      <sc-if value="{{ restBtn.show }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:13px 16px 0 16px;flex:0 0 auto">
+          <button style="{{ restBtn.style }}" style-hover="filter:brightness(0.98)" onClick="{{ restBtn.onClick }}" title="View the continuous no-cue rest recording before block 7 (pulled from neuralActivityTimeSeries)">{{ restBtn.label }}</button>
+        </div>
+      </sc-if>
+      <!-- conditions -->
+      <div style="padding:14px 16px 8px 16px;flex:0 0 auto">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b7280;margin-bottom:9px">Condition</div>
+      </div>
+      <div ref="{{ rCondScroll }}" class="scy" style="flex:0 1 auto;max-height:168px;padding:0 12px;min-height:64px">
+        <sc-for list="{{ conditions }}" as="cd" hint-placeholder-count="8">
+          <div ref="{{ cd.ref }}" style="{{ cd.style }}" onClick="{{ cd.onClick }}" draggable="true" onDragStart="{{ cd.onDragStart }}" title="Click to select · drag onto a graph to pin it as a comparison trace">
+            <span class="mono" style="font-weight:600;font-size:12.5px">{{ cd.name }}</span>
+            <span class="mono" style="font-size:10px;color:#9aa0a8">{{ cd.count }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- sweeps -->
+      <div style="flex:1 1 auto;display:flex;flex-direction:column;min-height:0;border-top:1px solid #e2e5ea;margin-top:8px">
+        <div style="padding:12px 16px 8px 16px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b7280">Sweep</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <button style="{{ sweepNav.prevStyle }}" onClick="{{ sweepNav.prev }}" title="Previous ( [ )">‹</button>
+              <span class="mono" style="font-size:12px;font-weight:600;min-width:56px;text-align:center">{{ sweepNav.label }}</span>
+              <button style="{{ sweepNav.nextStyle }}" onClick="{{ sweepNav.next }}" title="Next ( ] )">›</button>
+            </div>
+          </div>
+          <button style="{{ session.style }}" style-hover="filter:brightness(0.98)" onClick="{{ session.onClick }}" title="Play through every trial in acquisition order; conditions auto-select as they were recorded">{{ session.label }}</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <div style="flex:1;height:5px;background:#eceef1;border-radius:3px;overflow:hidden"><div style="{{ session.barStyle }}"></div></div>
+            <span class="mono" style="font-size:9.5px;color:#9aa0a8;white-space:nowrap">{{ session.trialLabel }}</span>
+          </div>
+          <button style="{{ sweepMeanBtn.style }}" style-hover="filter:brightness(0.98)" onClick="{{ sweepMeanBtn.onClick }}" title="Average the selected condition across all sweeps (this is what the peak selection uses)">{{ sweepMeanBtn.label }}</button>
+        </div>
+        <div ref="{{ rSweepScroll }}" class="scy" style="flex:1;min-height:0;padding:2px 14px 10px 14px">
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:5px">
+            <sc-for list="{{ sweeps }}" as="sw" hint-placeholder-count="42">
+              <button ref="{{ sw.ref }}" style="{{ sw.style }}" onClick="{{ sw.onClick }}" draggable="true" onDragStart="{{ sw.onDragStart }}" title="Click to select · drag onto a graph to pin that sweep">{{ sw.n }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <!-- subject cue -->
+      <div style="flex:0 0 auto;border-top:1px solid #e2e5ea;background:#fff;padding:14px 16px 16px 16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6b7280">Subject Cue</div>
+          <div ref="{{ rCueState }}" class="mono" style="font-size:10px;font-weight:700;letter-spacing:.08em;color:#e5484d">HOLD</div>
+        </div>
+        <div style="background:#0e1013;border:1px solid #23262b;border-radius:10px;padding:16px 16px 15px 16px;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <div class="mono" style="font-size:32px;font-weight:700;color:#f4f5f6;letter-spacing:.04em;line-height:1;text-align:center">{{ cueWord }}</div>
+          <div style="display:flex;gap:30px;align-items:center">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div ref="{{ rCueRed }}" style="width:26px;height:26px;border-radius:50%;background:#e5484d;box-shadow:0 0 14px rgba(229,72,77,.7);transition:opacity .12s"></div>
+              <span class="mono" style="font-size:8.5px;color:#7c8087;letter-spacing:.08em">HOLD</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+              <div ref="{{ rCueGreen }}" style="width:26px;height:26px;border-radius:50%;background:#30a46c;box-shadow:0 0 14px rgba(48,164,108,.7);opacity:.18;transition:opacity .12s"></div>
+              <span class="mono" style="font-size:8.5px;color:#7c8087;letter-spacing:.08em">GO</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tooltip -->
+  <sc-if value="{{ tip.show }}" hint-placeholder-val="{{ false }}">
+    <div style="{{ tip.style }}">
+      <div style="display:flex;justify-content:space-between;gap:16px;align-items:baseline;margin-bottom:5px">
+        <span class="mono" style="font-size:12px;font-weight:700">{{ tip.chLabel }}</span>
+        <span style="font-size:10px;color:#c9cdd3">{{ tip.area }}</span>
+      </div>
+      <div class="mono" style="font-size:10.5px;color:#c9cdd3;margin-bottom:7px">mean {{ tip.mean }}</div>
+      <svg width="150" height="34" style="display:block">
+        <polyline ref="{{ rSpark }}" fill="none" stroke="#5fd0d8" stroke-width="1.5"></polyline>
+        <line x1="50" y1="0" x2="50" y2="34" stroke="rgba(255,255,255,.25)" stroke-width="1" stroke-dasharray="2 2"></line>
+      </svg>
+    </div>
+  </sc-if>
+
+  <!-- PSTH-panel hover readout (imperative; time + value at the hovered point) -->
+  <div ref="{{ rPtip }}" class="mono" style="position:fixed;display:none;z-index:120;background:#1a1d23;color:#fff;font-size:10.5px;padding:4px 8px;border-radius:6px;pointer-events:none;box-shadow:0 4px 14px rgba(16,24,40,.28);white-space:nowrap"></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0e7c86&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;colormap&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;viridis&quot;,&quot;options&quot;:[&quot;viridis&quot;,&quot;inferno&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;heatMax&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:55,&quot;min&quot;:20,&quot;max&quot;:100,&quot;step&quot;:5,&quot;unit&quot;:&quot;Hz&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Heatmap&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.T0=-500; this.T1=1000; this.BIN=10; this.NB=151; this.INTEG=100;
+    this.SESSWIN=10000; this.SESSMIN=3000;
+    this.NCH=192; this.HZ=100; this.SIGMA=2; this.NPOS=100; this.COLS=10;
+    // real data (loaded at mount)
+    this.MEANKEY='∑ALL'; this._condMean={}; this._condSwMean={};   // sentinel condition = grand mean across all conditions; _condSwMean = per-condition mean across all sweeps
+    this.CONDS=[]; this.CLABEL={}; this.CCUE={};
+    this.ARRAYS=[{id:'A1',label:'Array 1',sub:'96 ch'},{id:'A2',label:'Array 2',sub:'96 ch'}];
+    this.GEO=[]; this.SWEEPS=27; this.HEATMAX=90;
+    this.MANIFEST=null; this.CUBE=null; this.SESS=null; this.SESSMETA=null; this._order=[];
+    this.KERN=this.gaussKernel(this.SIGMA);
+    this.els={cell:{},canvas:{}};
+    this._cellRef={}; this._canRef={};
+    this.playMs=-500;
+    this.state={
+      arrayId:'A1', condition:'', sweep:1,
+      selected:[],
+      collapsed:{}, playing:false,
+      user:'', profileOpen:false, viewMode:'absolute', liveSource:'rate', showAbs:true, zscore:false, absMode:'off', smoothOpen:false, restMode:false, sweepMean:false,
+      speed:1, loop:true, autoAdvance:false,
+      winStart:0, winEnd:150,
+      loading:true, tip:{show:false}
+    };
+    // singleton ref setters
+    this.rTime=e=>this.timeEl=e; this.rBin=e=>this.binEl=e;
+    this.rTlTrack=e=>this.tlTrackEl=e; this.rTlPlay=e=>this.tlPlayEl=e;
+    this.rGridWrap=e=>this.gridWrapEl=e; this.rBand=e=>this.bandEl=e;
+    this.rPanelsWrap=e=>this.panelsWrapEl=e; this.rPlayhead=e=>this.playheadEl=e;
+    this.rCueRed=e=>this.cueRedEl=e; this.rCueGreen=e=>this.cueGreenEl=e; this.rCueState=e=>this.cueStateEl=e;
+    this.rCondScroll=e=>this.condScrollEl=e; this.rSweepScroll=e=>this.sweepScrollEl=e;
+    this.rRuler=e=>this.rulerEl=e;
+    this.rSpark=e=>{ this.sparkEl=e; if(e&&this._spark) e.setAttribute('points',this._spark); };
+    this._condEls={}; this._sweepEls={}; this._condRef={}; this._sweepRef={};
+    this.rPtip=e=>this.ptipEl=e;
+    // bound
+    this.tick=this.tick.bind(this);
+    this.gridDown=this.gridDown.bind(this);
+    this.panelScrub=this.panelScrub.bind(this);
+    this.panelHover=this.panelHover.bind(this);
+    this.panelHoverOut=this.panelHoverOut.bind(this);
+    this.onKey=this.onKey.bind(this);
+  }
+  acc(){ return this.props.accent || '#0e7c86'; }
+  gridMax(){ return this.HEATMAX || this.props.heatMax || 90; }
+  chAt(pos){ const e=this.GEO[pos]; if(!e) return -1; return (e-1)+(this.AOFF?(this.AOFF[this.state.arrayId]||0):0); }
+  aOff(id){ return this.AOFF?(this.AOFF[id]||0):0; }
+  aLabel(id){ const a=(this.ARRAYS||[]).find(x=>x.id===id); return a?a.label:id; }
+  // per-sweep epoch: each trial spans its OWN [cue-on - 0.2s , go + 1.5s], so prepare length (and go position) varies per sweep
+  cueOnBin(){ const m=this.SESSMETA; if(!m||!m.delayBins) return this.GO_BIN; const ci=this.CONDS.indexOf(this.state.condition); const arr=m.delayBins[ci]; if(!arr) return this.GO_BIN; const b=arr[this.state.sweep-1]; return b==null?this.GO_BIN:b; }
+  curDelayMs(){ if(this.isMeanCond()||this.state.sweepMean||this.hasPinned()) return this.winStartMs(); return this.T0+this.cueOnBin()*this.BIN; }
+  nextCueBin(){ const m=this.SESSMETA; if(!m||!m.nextCueBins) return this.NB-1; const ci=this.CONDS.indexOf(this.state.condition); const arr=m.nextCueBins[ci]; if(!arr) return this.NB-1; const b=arr[this.state.sweep-1]; return b==null?this.NB-1:b; }
+  cueOnBinFor(ci,t){ const a=this.SESSMETA&&this.SESSMETA.delayBins&&this.SESSMETA.delayBins[ci]; return (a&&a[t]!=null)?a[t]:this.GO_BIN; }
+  nextCueBinFor(ci,t){ const a=this.SESSMETA&&this.SESSMETA.nextCueBins&&this.SESSMETA.nextCueBins[ci]; return (a&&a[t]!=null)?a[t]:this.NB-1; }
+  epochBins(){ if(this.isMeanCond()||this.state.sweepMean||this.hasPinned()) return [0,this.NB-1]; return [this.cueOnBin(), this.nextCueBin()]; }   // mean-cond / sweep-average / pinned compare: full go-aligned window (a shared axis); else cue-to-cue
+  sessBins(){ return [0, Math.min(this.NB-1,this.GO_BIN+150)]; }
+  winBins(){ return this.epochBins(); }  // every trial (incl. session play) uses its own real epoch
+  goFrac(){ const s=this.winStartMs(),e=this.winEndMs(); return e>s?(0-s)/(e-s):0.5; }
+  msToFrac(ms){ const s=this.winStartMs(),e=this.winEndMs(); return e>s?(ms-s)/(e-s):0; }
+
+  // ---------- data (real T5 handwriting cube) ----------
+  gaussKernel(sigma){ const r=Math.max(1,Math.ceil(sigma*3)); const k=[]; let s=0; for(let x=-r;x<=r;x++){ const v=Math.exp(-(x*x)/(2*sigma*sigma)); k.push(v); s+=v; } return k.map(v=>v/s); }
+  smooth(cnt){ // uint threshold-crossing counts (per 10ms bin) -> smoothed Hz (works on any length)
+    const NB=cnt.length, K=this.KERN, r=(K.length-1)/2, out=new Float64Array(NB);
+    for(let i=0;i<NB;i++){ let acc=0; for(let j=0;j<K.length;j++){ let idx=i+j-r; if(idx<0)idx=0; else if(idx>=NB)idx=NB-1; acc+=cnt[idx]*K[j]; } out[i]=acc*this.HZ; }
+    return out;
+  }
+  aiOf(id){ return this.ARRAYS.findIndex(a=>a.id===id); }
+  isMeanCond(){ return this.state.condition===this.MEANKEY; }
+  // grand-mean counts for a channel across ALL conditions & trials (cached)
+  condMeanCounts(ch){
+    if(this._condMean[ch]) return this._condMean[ch];
+    const NB=this.NB, NCH=this.NCH, nC=this.CONDS.length, ntr=this.SWEEPS; const out=new Float64Array(NB);
+    if(this.CUBE && ch>=0 && nC){ const N=nC*ntr, stepT=NB*NCH;
+      for(let ci=0;ci<nC;ci++){ let base=((ci*ntr)*NB)*NCH+ch; for(let i=0;i<NB;i++){ let acc=0, bt=base+i*NCH; for(let t=0;t<ntr;t++) acc+=this.CUBE[bt+t*stepT]; out[i]+=acc; } }
+      for(let i=0;i<NB;i++) out[i]/=N; }
+    this._condMean[ch]=out; return out;
+  }
+  condSweepMeanCounts(ch,ci){   // mean counts across ALL sweeps of one condition (cached)
+    const key=ci+'_'+ch; if(this._condSwMean[key]) return this._condSwMean[key];
+    const NB=this.NB, NCH=this.NCH, ntr=this.SWEEPS, stepT=NB*NCH; const out=new Float64Array(NB);
+    if(this.CUBE && ci>=0 && ch>=0){ const base=(ci*ntr*NB)*NCH+ch;
+      for(let i=0;i<NB;i++){ let acc=0, bt=base+i*NCH; for(let t=0;t<ntr;t++) acc+=this.CUBE[bt+t*stepT]; out[i]=acc/ntr; } }
+    this._condSwMean[key]=out; return out;
+  }
+  rateAbs(ch,ci,sw){   // smoothed Hz only (no diff/integral) — the hot path for session builds
+    if(ci===-2) return this.smooth(this.condMeanCounts(ch));   // mean-across-conditions
+    if(sw===0) return this.smooth(this.condSweepMeanCounts(ch,ci));   // mean across all sweeps (sweep-average)
+    const NB=this.NB, NCH=this.NCH, ntr=this.SWEEPS; const cnt=new Float64Array(NB);
+    if(this.CUBE && ci>=0 && ch>=0){ const base=((ci*ntr+(sw-1))*NB)*NCH + ch; for(let i=0;i<NB;i++) cnt[i]=this.CUBE[base+i*NCH]; }
+    return this.smooth(cnt);
+  }
+  seriesFor(arrayId,ch,ci,sw){ return this.derive(this.rateAbs(ch,ci,sw)); }
+  // abs-only series for a panel key (electrode or mean), z-scored when on — no wasteful diff/integral
+  absForKey(aid,chs,ci,sw){ if(chs==='mean') return this.meanAbs(aid,ci,sw); const ch=+chs; const a=this.rateAbs(ch,ci,sw); return this.state.zscore?this.zAbs(a,ch):a; }
+  // ---- REST (block-7 pre-cue) continuous segment, from neuralActivityTimeSeries ----
+  restRateAbs(ch){ const NB=this.RESTBINS,NCH=this.NCH; const cnt=new Float64Array(NB); if(this.REST&&ch>=0){ for(let i=0;i<NB;i++) cnt[i]=this.REST[i*NCH+ch]; } return this.smooth(cnt); }
+  restMeanAbs(arrayId){ const NB=this.RESTBINS,NCH=this.NCH,off=this.aOff(arrayId),P=this.APER; if(!this.REST) return new Float64Array(NB);
+    if(this.state.zscore){ const w=new Float64Array(NB); for(let i=0;i<NB;i++){ const b=i*NCH+off; let acc=0; for(let e=0;e<P;e++) acc+=this.REST[b+e]/(this.ZSTD[off+e]||1); w[i]=acc; }
+      const sm=this.smooth(w); let mu=0; for(let e=0;e<P;e++){ const ch=off+e; mu+=(this.ZMEAN[ch]||0)/(this.ZSTD[ch]||1); } mu/=P; const abs=new Float64Array(NB); for(let i=0;i<NB;i++) abs[i]=sm[i]/P-mu; return abs; }
+    const cnt=new Float64Array(NB); for(let i=0;i<NB;i++){ const b=i*NCH+off; let acc=0; for(let e=0;e<P;e++) acc+=this.REST[b+e]; cnt[i]=acc/P; } return this.smooth(cnt); }
+  restAbsForKey(aid,chs){ if(chs==='mean') return this.restMeanAbs(aid); const ch=+chs; const a=this.restRateAbs(ch); return this.state.zscore?this.zAbs(a,ch):a; }
+  restBinOf(ms){ return Math.max(0,Math.min(this.RESTBINS-1,Math.round(ms/this.BIN))); }
+  buildRest(){
+    const st=this.state; const sig='R|'+this.SESS+'|'+st.zscore+'|'+st.selected.join(',');
+    if(sig===this._sessSig && this.sessionData && this.sessionData.rest) return; this._sessSig=sig;
+    const total=this.RESTBINS, win=this.INTEG, data={};
+    for(const key of st.selected){ const pk=this.parseKey(key); const aid=pk.aid, chs=pk.chs, isMean=chs==='mean';
+      const abs=this.restAbsForKey(aid,chs); const integ=new Float64Array(total), diff=new Float64Array(total);
+      let run=0,mA=1e-6,mI=1e-6,mD=1e-6,nA=0,nI=0;
+      for(let i=0;i<total;i++){ const r=abs[i]; if(r>mA)mA=r; if(r<nA)nA=r; run+=r; if(i>=win) run-=abs[i-win]; integ[i]=run*this.BIN/1000; if(integ[i]>mI)mI=integ[i]; if(integ[i]<nI)nI=integ[i]; diff[i]=i?r-abs[i-1]:0; const ad=Math.abs(diff[i]); if(ad>mD)mD=ad; }
+      const band=this.bandpass(abs);
+      data[key]={abs,integ,diff,maxA:mA*1.1,maxI:mI*1.1,maxD:mD*1.12,minA:nA*1.1,minI:nI*1.1,isMean,absBand:band,maxBand:this.bandMax(band),absSmooth:this.absSmoothOf(abs)};
+    }
+    this.sessionData={total,offs:[],goOffs:[],chars:[],data,rest:true};
+  }
+  buildRestGrid(){
+    const sig='RG|'+this.SESS+'|'+this.state.zscore+'|'+this.state.arrayId;
+    if(sig===this._restGridSig && this.restGrid) return; this._restGridSig=sig;
+    const g={abs:{},diff:{}};
+    for(let pos=0;pos<this.NPOS;pos++){ const ch=this.chAt(pos); if(ch<0) continue; const a0=this.restRateAbs(ch); const a=this.state.zscore?this.zAbs(a0,ch):a0;
+      const d=new Float64Array(a.length); for(let i=1;i<a.length;i++) d[i]=a[i]-a[i-1]; g.abs[ch]=a; g.diff[ch]=d; }
+    this.restGrid=g;
+  }
+  boxcar(a,W){ // centered moving average, O(n) via prefix sums
+    const n=a.length, h=Math.floor(Math.min(n,W)/2); const pre=new Float64Array(n+1);
+    for(let i=0;i<n;i++) pre[i+1]=pre[i]+a[i]; const out=new Float64Array(n);
+    for(let i=0;i<n;i++){ const lo=Math.max(0,i-h), hi=Math.min(n,i+h+1); out[i]=(pre[hi]-pre[lo])/(hi-lo); } return out;
+  }
+  lp3(a,W){ return this.boxcar(this.boxcar(this.boxcar(a,W),W),W); } // 3-pass boxcar ≈ Gaussian low-pass (smooth, no ripple, still O(n))
+  // band-pass 3–10 s: difference of two smooth (Gaussian-like) low-passes, centered on 0
+  bandpass(a){
+    const n=a.length; if(!n) return new Float64Array(0);
+    const Ws=Math.round(3000/(Math.PI*this.BIN)), Wl=Math.round(10000/(Math.PI*this.BIN)); // 3-pass widths → ~3 s / ~10 s cutoffs
+    const s=this.lp3(a,Ws), l=this.lp3(a,Wl), out=new Float64Array(n); for(let i=0;i<n;i++) out[i]=s[i]-l[i]; return out;
+  }
+  bandMax(b){ let m=1e-6; for(let i=0;i<b.length;i++){ const v=Math.abs(b[i]); if(v>m)m=v; } return m*1.12; }
+  // extra display smoothing (Gaussian σ=40ms) on top of the base trace
+  absSmoothOf(a){ const K=this.SMOOTHK; if(!K) return a; const n=a.length, r=(K.length-1)/2, out=new Float64Array(n);
+    for(let i=0;i<n;i++){ let acc=0; for(let j=0;j<K.length;j++){ let idx=i+j-r; if(idx<0)idx=0; else if(idx>=n)idx=n-1; acc+=a[idx]*K[j]; } out[i]=acc; } return out; }
+  // build diff + 1s-integral from an abs series
+  derive(abs){ const NB=this.NB; const diff=new Float64Array(NB); for(let i=1;i<NB;i++) diff[i]=abs[i]-abs[i-1];
+    const integ=new Float64Array(NB); for(let i=0;i<NB;i++){ let s=0; for(let k=Math.max(0,i-this.INTEG+1);k<=i;k++) s+=abs[k]*this.BIN/1000; integ[i]=s; } return {abs,diff,integ}; }
+  // z-score a raw smoothed-Hz series for channel ch using whole-session mean/std
+  zAbs(absRaw,ch){ const NB=this.NB, mu=this.ZMEAN[ch]||0, sd=this.ZSTD[ch]||1; const abs=new Float64Array(NB); for(let i=0;i<NB;i++) abs[i]=(absRaw[i]-mu)/sd; return abs; }
+  // population mean across the array's 96 electrodes; z-scores each electrode first when zscore is on
+  meanAbs(arrayId,ci,sw){
+    const NB=this.NB, NCH=this.NCH, ntr=this.SWEEPS, off=this.aOff(arrayId), P=this.APER;
+    if(ci===-2){ // mean over conditions AND the array's electrodes
+      const abs=new Float64Array(NB);
+      for(let e=0;e<P;e++){ const ch=off+e; const a=this.smooth(this.condMeanCounts(ch)); const az=this.state.zscore?this.zAbs(a,ch):a; for(let i=0;i<NB;i++) abs[i]+=az[i]; }
+      for(let i=0;i<NB;i++) abs[i]/=P; return abs;
+    }
+    if(sw===0 && ci>=0){ // one condition, mean over the array's electrodes AND all sweeps
+      const abs=new Float64Array(NB);
+      for(let e=0;e<P;e++){ const ch=off+e; const a=this.smooth(this.condSweepMeanCounts(ch,ci)); const az=this.state.zscore?this.zAbs(a,ch):a; for(let i=0;i<NB;i++) abs[i]+=az[i]; }
+      for(let i=0;i<NB;i++) abs[i]/=P; return abs;
+    }
+    if(!(this.CUBE&&ci>=0)) return new Float64Array(NB);
+    const base=((ci*ntr+(sw-1))*NB)*NCH;
+    if(this.state.zscore){
+      // mean of per-electrode z = smooth(Σ counts_e/σ_e)/P − mean_e(μ_e/σ_e)   (smoothing is linear → ONE smooth)
+      const w=new Float64Array(NB);
+      for(let i=0;i<NB;i++){ const b=base+i*NCH+off; let acc=0; for(let e=0;e<P;e++) acc+=this.CUBE[b+e]/(this.ZSTD[off+e]||1); w[i]=acc; }
+      const sm=this.smooth(w); let mu=0; for(let e=0;e<P;e++){ const ch=off+e; mu+=(this.ZMEAN[ch]||0)/(this.ZSTD[ch]||1); } mu/=P;
+      const abs=new Float64Array(NB); for(let i=0;i<NB;i++) abs[i]=sm[i]/P-mu; return abs;
+    }
+    const cnt=new Float64Array(NB);
+    for(let i=0;i<NB;i++){ const b=base+i*NCH+off; let acc=0; for(let e=0;e<P;e++) acc+=this.CUBE[b+e]; cnt[i]=acc/P; }
+    return this.smooth(cnt);
+  }
+  meanSeriesFor(arrayId,ci,sw){ return this.derive(this.meanAbs(arrayId,ci,sw)); }
+  seriesForKey(aid,chs,ci,sw){
+    if(chs==='mean') return this.meanSeriesFor(aid,ci,sw);
+    const ch=+chs; const raw=this.seriesFor(aid,ch,ci,sw);
+    return this.state.zscore ? this.derive(this.zAbs(raw.abs,ch)) : raw;
+  }
+  ensureComputed(){
+    if(!this.CUBE || this.state.restMode) return;   // rest mode uses restGrid + buildRest, not trial data
+    const st=this.state;
+    const sig=this.SESS+'|'+st.arrayId+'|'+st.condition+'|'+st.sweep+'|'+st.sweepMean+'|'+st.zscore+'|'+st.selected.join(',');
+    if(sig===this._sig) return; this._sig=sig;
+    const ci=this.isMeanCond()?-2:this.CONDS.indexOf(st.condition);
+    const sw=st.sweepMean?0:st.sweep;   // 0 = average across all sweeps
+    // grid data (current array) keyed by global channel
+    const g={abs:{},diff:{}};
+    for(let pos=0;pos<this.NPOS;pos++){ const ch=this.chAt(pos); if(ch<0) continue;
+      const s=this.seriesFor(st.arrayId,ch,ci,sw); g.abs[ch]=s.abs; g.diff[ch]=s.diff; }
+    this.gridData=g;
+    // panel data
+    const pd={};
+    for(const key of st.selected){
+      const pk=this.parseKey(key); const aid=pk.aid, chs=pk.chs, isMean=chs==='mean';
+      const s=this.seriesForKey(aid,chs, pk.pinned?pk.ci:ci, pk.pinned?pk.sw:sw);
+      let mA=1e-6,mI=1e-6,mD=1e-6,nA=0,nI=0,sum=0;
+      for(let i=0;i<this.NB;i++){ const a=s.abs[i]; mA=Math.max(mA,a); if(a<nA)nA=a; mI=Math.max(mI,s.integ[i]); if(s.integ[i]<nI)nI=s.integ[i]; mD=Math.max(mD,Math.abs(s.diff[i])); sum+=a; }
+      const band=this.bandpass(s.abs);
+      pd[key]={...s,maxA:mA*1.12,maxI:mI*1.12,maxD:mD*1.15,minA:nA*1.12,minI:nI*1.12,mean:sum/this.NB,isMean,absBand:band,maxBand:this.bandMax(band),absSmooth:this.absSmoothOf(s.abs)};
+    }
+    this.panelData=pd;
+  }
+
+  // ---------- color ----------
+  lerp(a,b,t){ return a+(b-a)*t; }
+  cmap(t){
+    t=t<0?0:t>1?1:t;
+    const V=[[68,1,84],[71,44,122],[59,81,139],[44,113,142],[33,144,141],[39,173,129],[92,200,99],[170,220,50],[253,231,37]];
+    const I=[[0,0,4],[40,11,84],[101,21,110],[159,42,99],[212,72,66],[245,125,21],[250,193,39],[252,255,164]];
+    const S=(this.props.colormap==='inferno')?I:V;
+    const n=S.length-1; const f=t*n; const i=Math.min(n-1,Math.floor(f)); const u=f-i;
+    const r=this.lerp(S[i][0],S[i+1][0],u), g=this.lerp(S[i][1],S[i+1][1],u), b=this.lerp(S[i][2],S[i+1][2],u);
+    return [r,g,b];
+  }
+  diverge(t){ // -1..1 blue-white-red
+    t=t<-1?-1:t>1?1:t;
+    if(t<0){ const u=t+1; return [this.lerp(33,247,u),this.lerp(102,247,u),this.lerp(172,247,u)]; }
+    const u=t; return [this.lerp(247,178,u),this.lerp(247,24,u),this.lerp(247,43,u)];
+  }
+  rgb(c){ return 'rgb('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+')'; }
+  lum(c){ return (0.299*c[0]+0.587*c[1]+0.114*c[2])/255; }
+
+  // ---------- lifecycle ----------
+  componentDidMount(){
+    window.addEventListener('keydown',this.onKey);
+    this.track('load',{ref:document.referrer||'',w:window.innerWidth,h:window.innerHeight});
+    fetch('data/manifest.json').then(r=>r.json()).then(mf=>{ this.MANIFEST=mf; return this.loadUser(mf.defaultUser); })
+      .catch(e=>{ console.error('[explorer] data load failed:',e); this.setState({loading:false}); });
+    this.measureDraw();
+  }
+  loadUser(uid){
+    const u=(this.MANIFEST.users||[]).find(x=>x.id===uid); if(!u) return Promise.resolve();
+    // per-user recording params
+    this.USER=uid; this.SESS=uid; this.SESSMETA=u;
+    this.BIN=u.binMs; this.NB=u.nBins; this.T0=u.t0; this.T1=u.t1; this.NCH=u.nCh; this.GO_BIN=u.goBin;
+    this.GEO=u.geo; this.NPOS=u.geo.length; this.COLS=u.geoCols;
+    this.ARRAYS=u.arrays.map(a=>({id:a.id,label:a.label,sub:a.sub}));
+    this.AOFF={}; u.arrays.forEach(a=>{ this.AOFF[a.id]=a.offset||0; }); this.APER=Math.round(u.nCh/u.arrays.length);
+    this.SIGMA=u.sigma||2; this.KERN=this.gaussKernel(this.SIGMA); this.HZ=1000/this.BIN; this.INTEG=Math.round(1000/this.BIN);
+    this.SMOOTHK=this.gaussKernel(Math.max(0.5,40/this.BIN));   // display smoothing: Gaussian σ = 40 ms
+    this.SWEEPS=u.nTrials; this._order=u.order; this.HEATMAX=u.heatMax;
+    this.ZMEAN=u.zMean||[]; this.ZSTD=u.zStd||[];
+    this.CONDS=u.conditions.map(c=>c.key);
+    this.CLABEL={}; this.CCUE={}; u.conditions.forEach(c=>{ this.CLABEL[c.key]=c.label; this.CCUE[c.key]=c.cue; });
+    // reset all caches — channel space / bin grid changed
+    this.CUBE=null; this._sig=null; this._sessSig=null; this._restGridSig=null; this.gridData=null; this.restGrid=null;
+    this._keyCache={}; this._keyCacheKey=null; this._geoSess=null; this._ssBand=null; this._condMean={}; this._condSwMean={}; this.playMs=this.T0;
+    // rest segment (some users have none)
+    this.RESTMETA=u.rest||null; this.REST=null; this.RESTBINS=0; this.REST_MS=0;
+    if(u.rest){ this.fetchCube(u.rest.file).then(bf=>{ this.REST=bf; this.RESTBINS=u.rest.bins; this.REST_MS=u.rest.bins*this.BIN; this._restGridSig=null; this._sessSig=null; if(this.state.restMode) this.drawFrame(); }).catch(()=>{}); }
+    return this.fetchCube(u.dataFile).then(buf=>{
+      this.CUBE=buf;
+      this.setState({loading:false, user:uid, arrayId:u.defaultArray||'A1', condition:this.CONDS[0], sweep:1,
+        selected:u.defaultSelected.slice(), collapsed:{}, autoAdvance:false, restMode:false, sweepMean:false, winStart:0, winEnd:this.NB-1});
+    });
+  }
+  // Product analytics. Cloudflare Web Analytics covers pageviews/referrers/countries on
+  // its own; this adds what someone actually did once they were here. It is a no-op
+  // unless window.NSE_ANALYTICS_URL points at a collector (see deploy/analytics-worker.js).
+  // No cookies, no identifiers: sid is a per-tab random string, dropped when the tab closes.
+  track(event, props){
+    try{
+      const url=window.NSE_ANALYTICS_URL; if(!url) return;
+      if(!this._sid){ this._sid=Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+      const body=JSON.stringify({event, sid:this._sid, t:Date.now(), path:location.pathname, ...(props||{})});
+      if(navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body],{type:'application/json'}));
+      else fetch(url,{method:'POST',body,keepalive:true,headers:{'Content-Type':'application/json'}}).catch(()=>{});
+    }catch(e){}
+  }
+  // Only the .u8.gz sidecars are distributed, and hosts disagree about how to serve them.
+  // serve_gz.py answers a request for foo.u8 with the gzip sidecar plus Content-Encoding,
+  // so the browser inflates it. A plain static host (Cloudflare Pages) has no such logic
+  // and only the .gz file exists. So always ask for the .gz, then inflate here if the
+  // bytes really are still gzip; if the transport already inflated them, use them as-is.
+  fetchCube(name){
+    const raw=()=>fetch('data/'+name).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.arrayBuffer(); }).then(b=>new Uint8Array(b));
+    return fetch('data/'+name+'.gz').then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.arrayBuffer(); }).then(b=>{
+      const u8=new Uint8Array(b);
+      const gzipped=u8.length>2 && u8[0]===0x1f && u8[1]===0x8b;
+      if(!gzipped) return u8;
+      if(typeof DecompressionStream==='undefined') return raw();
+      return new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip')))
+        .arrayBuffer().then(x=>new Uint8Array(x));
+    }).catch(raw);
+  }
+  componentWillUnmount(){ window.removeEventListener('keydown',this.onKey); cancelAnimationFrame(this._raf); }
+  componentDidUpdate(){
+    const tk=this.state.restMode+'/'+this.state.condition+'/'+this.state.sweep;
+    if(tk!==this._lastTrialKey){ this._lastTrialKey=tk; this.playMs=this.winStartMs();   // reset BEFORE drawing so no backward/forward flicker at trial/mode boundaries
+      if(this.state.autoAdvance){ this.centerIn(this._condEls[this.state.condition],this.condScrollEl); this.centerIn(this._sweepEls[this.state.sweep],this.sweepScrollEl); } }
+    this.measureDraw();
+    if(this.sparkEl&&this._spark) this.sparkEl.setAttribute('points',this._spark);
+  }
+  condRef(name){ if(!this._condRef[name]) this._condRef[name]=el=>{ if(el)this._condEls[name]=el; else delete this._condEls[name]; }; return this._condRef[name]; }
+  sweepBtnRef(n){ if(!this._sweepRef[n]) this._sweepRef[n]=el=>{ if(el)this._sweepEls[n]=el; else delete this._sweepEls[n]; }; return this._sweepRef[n]; }
+  measureDraw(){ this.ensureComputed(); this.drawFrame(); }
+  onKey(e){
+    if(e.code==='Space'){ e.preventDefault(); this.togglePlay(); }
+    else if(e.code==='ArrowRight'){ e.preventDefault(); this.step(1); }
+    else if(e.code==='ArrowLeft'){ e.preventDefault(); this.step(-1); }
+    else if(e.key===']'){ this.state.autoAdvance?this.nudgeTrial(1):this.nudgeSweep(1); }
+    else if(e.key==='['){ this.state.autoAdvance?this.nudgeTrial(-1):this.nudgeSweep(-1); }
+  }
+
+  // ---------- playback ----------
+  winStartMs(){ if(this.state.restMode) return 0; return this.T0+this.winBins()[0]*this.BIN; }
+  winEndMs(){ if(this.state.restMode) return this.REST_MS; return this.T0+this.winBins()[1]*this.BIN; }
+  togglePlay(){ if(this.state.playing) this.pause(); else { this.track('play',{user:this.state.user,cond:this.state.condition,sweep:this.state.sweep}); this.play(); } }
+  play(){
+    if(this.state.playing) return;
+    if(this.playMs>=this.winEndMs()-1) this.playMs=this.winStartMs();
+    this._last=performance.now();
+    this.setState({playing:true,tip:{show:false}});
+    this._raf=requestAnimationFrame(this.tick);
+  }
+  pause(){ cancelAnimationFrame(this._raf); if(this.state.playing) this.setState({playing:false}); }
+  stop(){ cancelAnimationFrame(this._raf); this.playMs=this.winStartMs(); if(this.state.playing) this.setState({playing:false}); else this.drawFrame(); }
+  tick(ts){
+    let dt=ts-this._last; this._last=ts;
+    if(!(dt>=0)||dt>100) dt=16; // guard against backgrounded-tab / first-frame jumps
+    this.playMs+=dt*this.state.speed;
+    if(this.playMs>=this.winEndMs()){
+      if(this.state.autoAdvance){ const t=this.trialAt(this.trialIndexOf(this.state.condition,this.state.sweep)+1); this.setState({condition:t.condition,sweep:t.sweep}); this._raf=requestAnimationFrame(this.tick); return; } // componentDidUpdate resets playMs to the new trial's start & draws — no transient frame
+      else if(this.state.loop){ this.playMs=this.winStartMs(); }
+      else { this.playMs=this.winEndMs(); this.pause(); return; }
+    }
+    this.drawFrame();
+    this._raf=requestAnimationFrame(this.tick);
+  }
+  step(d){ this.pause(); this.playMs=Math.max(this.winStartMs(),Math.min(this.winEndMs(),this.playMs+d*this.BIN)); this.drawFrame(); }
+  scrubTo(frac){ const s=this.winStartMs(),e=this.winEndMs(); this.playMs=s+frac*(e-s); if(!this.state.playing) this.drawFrame(); }
+  nudgeSweep(d){ const s=Math.max(1,Math.min(this.SWEEPS,this.state.sweep+d)); if(s!==this.state.sweep) this.setState({sweep:s}); }
+  // ---------- session order (acquisition order: blocked-randomized) ----------
+  sessionTotal(){ return this._order.length||1; }
+  trialIndexOf(cond,sweep){ const ci=this.CONDS.indexOf(cond); const t=sweep-1; const o=this._order; for(let i=0;i<o.length;i++){ if(o[i][0]===ci&&o[i][1]===t) return i; } return 0; }
+  trialAt(idx){ const n=this._order.length||1; idx=((idx%n)+n)%n; const e=this._order[idx]||[0,0]; return {condition:this.CONDS[e[0]],sweep:e[1]+1}; }
+  gotoTrial(idx){ const t=this.trialAt(idx); this.setState({condition:t.condition,sweep:t.sweep}); }
+  nudgeTrial(d){ this.gotoTrial(this.trialIndexOf(this.state.condition,this.state.sweep)+d); }
+  centerIn(el,parent){ if(!el||!parent) return; const er=el.getBoundingClientRect(), pr=parent.getBoundingClientRect(); parent.scrollTop += (er.top-pr.top)-(parent.clientHeight/2-er.height/2); }
+
+  // ---------- draw ----------
+  binOf(ms){ return Math.max(0,Math.min(this.NB-1,Math.round((ms-this.T0)/this.BIN))); }
+  drawFrame(){
+    const rest=this.state.restMode;
+    if(!this.gridData && !rest) return;
+    const ms=this.playMs; const frac=this.msToFrac(ms); const bin=rest?this.restBinOf(ms):this.binOf(ms);
+    if(rest) this.buildRestGrid();
+    const G=rest?this.restGrid:this.gridData; if(!G) return;
+    // grid
+    const src=this.state.liveSource; const gmax=this.gridMax();
+    for(let pos=0;pos<this.NPOS;pos++){
+      const el=this.els.cell[pos]; if(!el) continue;
+      const ch=this.chAt(pos);
+      if(ch<0){ el.style.background='#eceef1'; el.style.color='#c0c4cb'; continue; }
+      const a=G.abs[ch], d=G.diff[ch]; if(!a){ continue; }
+      let col,val;
+      if(src==='rate'){ val=a[bin]; col=this.cmap(val/gmax); }
+      else { val=d[bin]; col=this.diverge(val/(gmax*0.28)); }
+      el.style.background=this.rgb(col);
+      el.style.color=this.lum(col)<0.55?'rgba(255,255,255,.92)':'rgba(20,22,28,.82)';
+      // live value in the cell (updates with the Rate/Δ toggle and playback), not the static electrode #
+      const sp=el.firstElementChild; if(sp){ const txt=src==='rate'?String(Math.round(val)):((val>=0?'+':'−')+Math.abs(Math.round(val))); if(sp.textContent!==txt) sp.textContent=txt; }
+    }
+    // panels
+    let overlayFrac=frac;
+    if(rest||this.state.autoAdvance){
+      // continuous scroll — constant time scale (session order, or the block-7 rest segment)
+      this.buildSession(); const SD=this.sessionData; const totMs=SD.total*this.BIN;
+      const viewEnd=Math.min(totMs,this.sessionNow());
+      let viewStart=viewEnd-this.SESSWIN; if(viewStart<0) viewStart=0; let vspan=viewEnd-viewStart; if(vspan<this.SESSMIN) vspan=this.SESSMIN;
+      // ONE shared y-scale for ALL panels: max over the visible window across every selected electrode, eased
+      const N=SD.total, b0=Math.max(0,Math.floor(viewStart/this.BIN)), b1=Math.min(N-1,Math.ceil(viewEnd/this.BIN));
+      let tA=1e-6,tI=1e-6,tD=1e-6,tLoA=0,tLoI=0;
+      for(const key of this.state.selected){ const d=SD.data[key]; if(!d||d.isMean) continue; for(let b=b0;b<=b1;b++){ if(d.abs[b]>tA)tA=d.abs[b]; if(d.abs[b]<tLoA)tLoA=d.abs[b]; if(d.integ[b]>tI)tI=d.integ[b]; if(d.integ[b]<tLoI)tLoI=d.integ[b]; const ad=Math.abs(d.diff[b]); if(ad>tD)tD=ad; } }
+      tA*=1.12; tI*=1.12; tD*=1.18;
+      if(this._ssA==null){this._ssA=tA;this._ssI=tI;this._ssD=tD;} else {const e=0.18; this._ssA+=(tA-this._ssA)*e; this._ssI+=(tI-this._ssI)*e; this._ssD+=(tD-this._ssD)*e;}
+      this._ssLoA=tLoA*1.12; this._ssLoI=tLoI*1.12;
+      let tBand=1e-6; for(const key of this.state.selected){ const d=SD.data[key]; if(d&&!d.isMean&&d.maxBand>tBand) tBand=d.maxBand; } this._ssBand=tBand;
+      this._view={mode:'session',viewStart,vspan};
+      for(const key of this.state.selected){ const cv=this.els.canvas[key]; const d=SD.data[key]; if(cv&&d) this.drawPanelSession(cv,d,viewStart,vspan,viewEnd); }
+      if(this.rulerEl) this.drawRuler(this.rulerEl,viewStart,vspan,viewEnd);
+      overlayFrac=(viewEnd-viewStart)/vspan;
+    } else {
+      // ONE shared y-scale across all selected panels (max of each mode's per-panel max)
+      let mA=1e-6,mI=1e-6,mD=1e-6,loA=0,loI=0,bnd=1e-6;
+      for(const key of this.state.selected){ const pd=this.panelData&&this.panelData[key]; if(!pd||pd.isMean) continue; if(pd.maxA>mA)mA=pd.maxA; if(pd.maxI>mI)mI=pd.maxI; if(pd.maxD>mD)mD=pd.maxD; if(pd.minA<loA)loA=pd.minA; if(pd.minI<loI)loI=pd.minI; if(pd.maxBand>bnd)bnd=pd.maxBand; }
+      this._ssA=mA; this._ssI=mI; this._ssD=mD; this._ssLoA=loA; this._ssLoI=loI; this._ssBand=bnd;
+      this._view={mode:'single'};
+      for(const key of this.state.selected){ const cv=this.els.canvas[key]; const pd=this.panelData&&this.panelData[key]; if(cv&&pd) this.drawPanel(cv,pd,frac,bin); }
+    }
+    // shared playhead overlay
+    if(this.playheadEl&&this.panelsWrapEl){
+      const anyKey=this.state.selected.find(k=>this.els.canvas[k]);
+      if(anyKey){ const cv=this.els.canvas[anyKey]; const cr=cv.getBoundingClientRect(); const wr=this.panelsWrapEl.getBoundingClientRect();
+        this.playheadEl.style.left=(cr.left-wr.left+overlayFrac*cr.width)+'px'; this.playheadEl.style.display='block';
+      } else this.playheadEl.style.display='none';
+    }
+    // readouts
+    if(this.timeEl) this.timeEl.textContent = rest ? (ms/1000).toFixed(1)+' s' : (ms>=0?'+':'−')+Math.abs(Math.round(ms))+' ms';
+    if(this.binEl) this.binEl.textContent = rest ? ('rest '+(ms/1000).toFixed(1)+' / '+(this.REST_MS/1000).toFixed(0)+' s') : ('bin '+bin+' / '+(this.NB-1));
+    if(this.tlPlayEl) this.tlPlayEl.style.left=(frac*100)+'%';
+    // cue
+    if(rest){
+      if(this.cueRedEl) this.cueRedEl.style.opacity=0.16;
+      if(this.cueGreenEl) this.cueGreenEl.style.opacity=0.16;
+      if(this.cueStateEl){ this.cueStateEl.textContent='REST'; this.cueStateEl.style.color='#9aa0a8'; }
+    } else if(this.isMeanCond()||this.state.sweepMean){
+      if(this.cueRedEl) this.cueRedEl.style.opacity=0.16;
+      if(this.cueGreenEl) this.cueGreenEl.style.opacity = ms>=0?1:0.16;
+      if(this.cueStateEl){ this.cueStateEl.textContent = ms>=0?'GO':(this.isMeanCond()?'MEAN':'AVG'); this.cueStateEl.style.color = ms>=0?'#30a46c':'#9aa0a8'; }
+    } else {
+      const dMs=this.curDelayMs();
+      const phase = ms>=0 ? 'GO' : (ms>=dMs ? 'HOLD' : 'FIX');
+      if(this.cueRedEl) this.cueRedEl.style.opacity = phase==='HOLD' ? 1 : 0.16;
+      if(this.cueGreenEl) this.cueGreenEl.style.opacity = phase==='GO' ? 1 : 0.16;
+      if(this.cueStateEl){ this.cueStateEl.textContent=phase; this.cueStateEl.style.color = phase==='GO'?'#30a46c':(phase==='HOLD'?'#e5484d':'#9aa0a8'); }
+    }
+  }
+  drawPanel(cv,pd,frac,bin){
+    const dpr=window.devicePixelRatio||1;
+    const w=cv.clientWidth, h=cv.clientHeight; if(!w) return;
+    if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    const N=this.NB; const acc=this.acc(); const mode=this.state.viewMode;
+    const wb=this.winBins(); const s=wb[0], e=wb[1]; const X=i=>(i-s)/(e-s)*w;  // zoom x-axis to this sweep's real epoch
+    // gridlines
+    ctx.strokeStyle='#eef1f4'; ctx.lineWidth=1;
+    for(let g=0;g<=4;g++){ const y=(h-1)*g/4; ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); }
+    // go-cue line (t=0 => frac 0.3333)
+    const gx=this.goFrac()*w; ctx.strokeStyle='rgba(14,124,134,.28)'; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,h); ctx.stroke(); ctx.setLineDash([]);
+    // cue-on (HOLD start) marker — real per-trial delay onset
+    const dFrac=this.msToFrac(this.curDelayMs());
+    if(dFrac>0.002){ const dx=dFrac*w; ctx.strokeStyle='rgba(229,72,77,.55)'; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(dx,0); ctx.lineTo(dx,h); ctx.stroke(); ctx.setLineDash([]); }
+    const drawnX=frac*w;
+    const uA=pd.isMean?pd['maxA']:(this._ssA||pd['maxA']), uI=pd.isMean?pd['maxI']:(this._ssI||pd['maxI']), uD=pd.isMean?pd['maxD']:(this._ssD||pd['maxD']);  // shared scale for electrodes; mean panel autoscales
+    const zz=this.state.zscore, unitA=zz?'z':'Hz', unitI=zz?'z·s':'spk', unitD=zz?'Δz':'Δ';
+    const loA=Math.min(0,pd.isMean?(pd.minA||0):(this._ssLoA||0)), rA=(uA-loA)||1, yAf=v=>h-4-((v-loA)/rA)*(h-10);
+    const loI=Math.min(0,pd.isMean?(pd.minI||0):(this._ssLoI||0)), rI=(uI-loI)||1, yIf=v=>h-4-((v-loI)/rI)*(h-10);
+    // helpers
+    const line=(arr,map,color,alpha,widthPx)=>{
+      ctx.strokeStyle=color; ctx.globalAlpha=alpha; ctx.lineWidth=widthPx; ctx.beginPath();
+      for(let i=0;i<N;i++){ const x=X(i),y=map(arr[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke(); ctx.globalAlpha=1;
+    };
+    if(mode==='absolute' && this.state.absMode==='wave'){
+      // 3–10 s band-pass wave, centered on 0
+      const bd=pd.absBand||pd.abs, M=(pd.isMean?pd.maxBand:(this._ssBand||pd.maxBand))||1, zy=h/2, sc=(h*0.44)/M, yB=v=>zy-v*sc;
+      ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zy+.5); ctx.lineTo(w,zy+.5); ctx.stroke();
+      line(bd,yB,'#334155',0.26,1.2);
+      ctx.strokeStyle=acc; ctx.lineWidth=1.8; ctx.beginPath(); for(let i=0;i<N && X(i)<=drawnX+1;i++){ const x=X(i),y=yB(bd[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+      this.axisLabels(ctx,w,h,M,unitA,true);
+    } else if(mode==='absolute'){
+      const aA=(this.state.absMode==='smooth'&&pd.absSmooth)?pd.absSmooth:pd.abs;
+      if(loA<0){ const zyl=yAf(0); ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zyl+.5); ctx.lineTo(w,zyl+.5); ctx.stroke(); }
+      if(this.state.showAbs){
+        line(aA,yAf,'#334155',0.28,1.4);
+        // drawn portion
+        ctx.strokeStyle='#1f2937'; ctx.lineWidth=1.7; ctx.beginPath();
+        for(let i=0;i<N && X(i)<=drawnX+1;i++){ const x=X(i),y=yAf(aA[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+      }
+      this.axisLabels(ctx,w,h,uA,unitA,false,loA);
+    } else if(mode==='integral'){
+      if(this.state.showAbs){ line(pd.abs,yAf,'#334155',0.16,1); }
+      const yI=yIf, baseY=yIf(loI<0?0:loI);
+      if(loI<0){ ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,baseY+.5); ctx.lineTo(w,baseY+.5); ctx.stroke(); }
+      // filled area (from zero baseline) up to drawn
+      ctx.fillStyle=acc; ctx.globalAlpha=0.14; ctx.beginPath(); ctx.moveTo(0,baseY);
+      for(let i=0;i<N;i++) ctx.lineTo(X(i),yI(pd.integ[i])); ctx.lineTo(w,baseY); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+      // brighter fill up to playhead
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,drawnX,h); ctx.clip();
+      ctx.fillStyle=acc; ctx.globalAlpha=0.22; ctx.beginPath(); ctx.moveTo(0,baseY);
+      for(let i=0;i<N;i++) ctx.lineTo(X(i),yI(pd.integ[i])); ctx.lineTo(w,baseY); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1; ctx.restore();
+      line(pd.integ,yI,acc,0.95,1.7);
+      this.axisLabels(ctx,w,h,uI,unitI,false,loI);
+    } else { // differential
+      const zy=h*0.5; const sc=(h*0.42)/uD;
+      // baseline
+      ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zy+.5); ctx.lineTo(w,zy+.5); ctx.stroke();
+      const bw=Math.max(1.5,w/(e-s)-1);
+      for(let i=0;i<N;i++){ const v=pd.diff[i]; const x=X(i); const y=zy-v*sc; const pos=v>=0;
+        ctx.fillStyle=pos?'rgba(229,72,77,'+(X(i)<=drawnX?0.7:0.28)+')':'rgba(33,102,172,'+(X(i)<=drawnX?0.7:0.28)+')';
+        ctx.fillRect(x-bw/2,pos?y:zy,bw,Math.abs(v*sc)); }
+      this.axisLabels(ctx,w,h,uD,unitD,true);
+    }
+    // playhead
+    ctx.strokeStyle=acc; ctx.lineWidth=1.5; ctx.globalAlpha=0.9; ctx.beginPath(); ctx.moveTo(drawnX,0); ctx.lineTo(drawnX,h); ctx.stroke(); ctx.globalAlpha=1;
+    // value dot on active trace
+    if(mode==='absolute'&&this.state.showAbs&&this.state.absMode!=='wave'){ const aA=(this.state.absMode==='smooth'&&pd.absSmooth)?pd.absSmooth:pd.abs; this.dot(ctx,drawnX,yAf(aA[bin]),acc); }
+    else if(mode==='integral'){ this.dot(ctx,drawnX,yIf(pd.integ[bin]),acc); }
+  }
+  dot(ctx,x,y,c){ ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(x,y,3.4,0,7); ctx.fill(); ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,y,2.1,0,7); ctx.fill(); }
+  axisLabels(ctx,w,h,max,unit,sym,lo){
+    ctx.fillStyle='#b0b6bd'; ctx.font='9px "JetBrains Mono",monospace'; ctx.textBaseline='top';
+    const dp=(unit==='spk'||unit==='z·s'||unit==='z')?1:0;
+    if(sym){ ctx.fillText('+'+max.toFixed(0)+unit,4,3); ctx.textBaseline='bottom'; ctx.fillText('−'+max.toFixed(0)+unit,4,h-2); }
+    else { ctx.fillText(max.toFixed(dp)+' '+unit,4,3); ctx.textBaseline='bottom'; ctx.fillText((lo&&lo<0)?lo.toFixed(dp):'0',4,h-2); }
+  }
+
+  // ---------- session scrolling timeline ----------
+  buildSession(){
+    if(this.state.restMode) return this.buildRest();
+    const st=this.state; const sig='S|'+this.SESS+'|'+st.zscore+'|'+st.selected.join(',');
+    if(sig===this._sessSig && this.sessionData && !this.sessionData.rest) return; this._sessSig=sig;
+    // per-session geometry (cue-to-cue offsets) — depends only on session, cache it
+    if(this._geoSess!==this.SESS){ this._buildSessGeo(); this._geoSess=this.SESS; }
+    const G=this._geo;
+    // per-key session series cache — only build keys not seen; invalidate on session/zscore change
+    const ck=this.SESS+'|'+st.zscore; if(this._keyCacheKey!==ck){ this._keyCache={}; this._keyCacheKey=ck; }
+    const data={};
+    for(const key of st.selected){ if(!this._keyCache[key]) this._keyCache[key]=this._buildSessKey(key,G); data[key]=this._keyCache[key]; }
+    this.sessionData={total:G.total,offs:G.offs,goOffs:G.goOffs,chars:G.chars,data};
+  }
+  _buildSessGeo(){
+    const order=this._order, Ntr=order.length;
+    const segs=[], offs=new Array(Ntr), goOffs=new Array(Ntr), chars=new Array(Ntr); let cum=0;
+    for(let g=0;g<Ntr;g++){ const ci=order[g][0], t=order[g][1]; const cueB=this.cueOnBinFor(ci,t); const nextB=this.nextCueBinFor(ci,t);
+      const len=Math.max(1,nextB-cueB); offs[g]=cum; goOffs[g]=cum+(this.GO_BIN-cueB); chars[g]=this.CCUE[this.CONDS[ci]]||this.CONDS[ci];
+      segs.push({ci,t,cueB,len}); cum+=len; }
+    this._geo={segs,offs,goOffs,chars,total:cum};
+  }
+  _buildSessKey(key,G){
+    const pk=this.parseKey(key); const aid=pk.aid, chs=pk.chs, isMean=chs==='mean'; const win=this.INTEG, total=G.total, segs=G.segs, Ntr=segs.length;
+    const abs=new Float64Array(total), integ=new Float64Array(total), diff=new Float64Array(total);
+    let run=0,mA=1e-6,mI=1e-6,mD=1e-6,nA=0,nI=0,idx=0;
+    for(let g=0;g<Ntr;g++){ const sg=segs[g]; const series=this.absForKey(aid,chs,sg.ci,sg.t+1);
+      for(let k=0;k<sg.len;k++){ const r=series[sg.cueB+k]||0; abs[idx]=r; if(r>mA)mA=r; if(r<nA)nA=r;
+        run+=r; if(idx>=win) run-=abs[idx-win]; integ[idx]=run*this.BIN/1000; if(integ[idx]>mI)mI=integ[idx]; if(integ[idx]<nI)nI=integ[idx];
+        diff[idx]=idx?r-abs[idx-1]:0; const ad=Math.abs(diff[idx]); if(ad>mD)mD=ad; idx++; }
+    }
+    const band=this.bandpass(abs);
+    return {abs,integ,diff,maxA:mA*1.1,maxI:mI*1.1,maxD:mD*1.12,minA:nA*1.1,minI:nI*1.1,isMean,absBand:band,maxBand:this.bandMax(band),absSmooth:this.absSmoothOf(abs)};
+  }
+  // playhead position (ms) along the continuous session timeline
+  sessionNow(){ if(this.state.restMode) return this.playMs; const g=this.trialIndexOf(this.state.condition,this.state.sweep); const off=(this.sessionData.offs[g]||0)*this.BIN; const cueMs=this.T0+this.cueOnBin()*this.BIN; return off + (this.playMs-cueMs); }
+  drawPanelSession(cv,d,viewStart,vspan,viewEnd){
+    const dpr=window.devicePixelRatio||1; const w=cv.clientWidth,h=cv.clientHeight; if(!w) return;
+    if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    const acc=this.acc(); const mode=this.state.viewMode; const N=d.abs.length; const BIN=this.BIN;
+    const X=s=>(s-viewStart)/vspan*w; const playX=X(viewEnd);
+    ctx.strokeStyle='#eef1f4'; ctx.lineWidth=1; for(let g=0;g<=4;g++){const y=(h-1)*g/4;ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(w,y+.5);ctx.stroke();}
+    // real cue (red) + go (teal) lines per trial, at their true continuous positions
+    const SD=this.sessionData;
+    for(let g=0;g<SD.offs.length;g++){ const cueMs=SD.offs[g]*BIN, goMs=SD.goOffs[g]*BIN; if(goMs<viewStart-100||cueMs>viewEnd+100) continue;
+      const bx=X(cueMs); if(bx>=-2&&bx<=w+2){ ctx.strokeStyle='rgba(229,72,77,.28)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(bx,0); ctx.lineTo(bx,h); ctx.stroke(); }
+      const gx=X(goMs); if(gx>=-2&&gx<=w+2){ ctx.strokeStyle='rgba(14,124,134,.30)'; ctx.setLineDash([3,3]); ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,h); ctx.stroke(); ctx.setLineDash([]); } }
+    const b0=Math.max(0,Math.floor(viewStart/BIN)), b1=Math.min(N-1,Math.ceil(viewEnd/BIN));
+    // shared y-scale for electrodes; the array-mean panel autoscales to its own (much smaller) magnitude
+    const mA=d.isMean?d.maxA:(this._ssA||d.maxA), mI=d.isMean?d.maxI:(this._ssI||d.maxI), mD=d.isMean?d.maxD:(this._ssD||d.maxD);
+    const zz=this.state.zscore, unitA=zz?'z':'Hz', unitI=zz?'z·s':'spk', unitD=zz?'Δz':'Δ';
+    const loA=Math.min(0,d.isMean?(d.minA||0):(this._ssLoA||0)), rA=(mA-loA)||1, yAf=v=>h-4-((v-loA)/rA)*(h-10);
+    const loI=Math.min(0,d.isMean?(d.minI||0):(this._ssLoI||0)), rI=(mI-loI)||1, yIf=v=>h-4-((v-loI)/rI)*(h-10);
+    if(mode==='differential'){
+      const zy=h*0.5, sc=(h*0.42)/mD; ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zy+.5); ctx.lineTo(w,zy+.5); ctx.stroke();
+      const bw=Math.max(1,w/((viewEnd-viewStart)/BIN)-0.5);
+      for(let b=b0;b<=b1;b++){ const x=X(b*BIN),v=d.diff[b],pos=v>=0,al=(x<=playX?0.7:0.25); ctx.fillStyle=pos?'rgba(229,72,77,'+al+')':'rgba(33,102,172,'+al+')'; ctx.fillRect(x-bw/2,pos?zy-v*sc:zy,bw,Math.abs(v*sc)); }
+      this.axisLabels(ctx,w,h,mD,unitD,true);
+    } else if(mode==='integral'){
+      const baseY=yIf(loI<0?0:loI);
+      if(loI<0){ ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,baseY+.5); ctx.lineTo(w,baseY+.5); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(X(b0*BIN),baseY); for(let b=b0;b<=b1;b++) ctx.lineTo(X(b*BIN),yIf(d.integ[b])); ctx.lineTo(X(b1*BIN),baseY); ctx.closePath(); ctx.fillStyle=acc; ctx.globalAlpha=0.16; ctx.fill(); ctx.globalAlpha=1;
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,playX,h); ctx.clip(); ctx.beginPath(); ctx.moveTo(X(b0*BIN),baseY); for(let b=b0;b<=b1;b++) ctx.lineTo(X(b*BIN),yIf(d.integ[b])); ctx.lineTo(X(b1*BIN),baseY); ctx.closePath(); ctx.fillStyle=acc; ctx.globalAlpha=0.24; ctx.fill(); ctx.globalAlpha=1; ctx.restore();
+      ctx.strokeStyle=acc; ctx.lineWidth=1.6; ctx.beginPath(); for(let b=b0;b<=b1;b++){const x=X(b*BIN),y=yIf(d.integ[b]);b===b0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+      this.axisLabels(ctx,w,h,mI,unitI,false,loI);
+    } else if(this.state.absMode==='wave'){
+      // 3–10 s band-pass wave, centered on 0
+      const bd=d.absBand||d.abs, M=(d.isMean?d.maxBand:(this._ssBand||d.maxBand))||1, zy=h/2, sc=(h*0.44)/M, yB=v=>zy-v*sc;
+      ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zy+.5); ctx.lineTo(w,zy+.5); ctx.stroke();
+      ctx.strokeStyle='#334155'; ctx.globalAlpha=0.26; ctx.lineWidth=1.2; ctx.beginPath(); for(let b=b0;b<=b1;b++){const x=X(b*BIN),y=yB(bd[b]);b===b0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.globalAlpha=1;
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,playX,h); ctx.clip(); ctx.strokeStyle=acc; ctx.lineWidth=1.8; ctx.beginPath(); for(let b=b0;b<=b1;b++){const x=X(b*BIN),y=yB(bd[b]);b===b0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore();
+      this.axisLabels(ctx,w,h,M,unitA,true);
+    } else {
+      const aA=(this.state.absMode==='smooth'&&d.absSmooth)?d.absSmooth:d.abs;
+      if(loA<0){ const zyl=yAf(0); ctx.strokeStyle='#d7dbe0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(0,zyl+.5); ctx.lineTo(w,zyl+.5); ctx.stroke(); }
+      if(this.state.showAbs){ ctx.strokeStyle='#334155'; ctx.globalAlpha=0.28; ctx.lineWidth=1.3; ctx.beginPath(); for(let b=b0;b<=b1;b++){const x=X(b*BIN),y=yAf(aA[b]);b===b0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.globalAlpha=1;
+        ctx.save(); ctx.beginPath(); ctx.rect(0,0,playX,h); ctx.clip(); ctx.strokeStyle='#1f2937'; ctx.lineWidth=1.7; ctx.beginPath(); for(let b=b0;b<=b1;b++){const x=X(b*BIN),y=yAf(aA[b]);b===b0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke(); ctx.restore(); }
+      this.axisLabels(ctx,w,h,mA,unitA,false,loA);
+    }
+    ctx.strokeStyle=acc; ctx.lineWidth=1.5; ctx.globalAlpha=0.9; ctx.beginPath(); ctx.moveTo(playX,0); ctx.lineTo(playX,h); ctx.stroke(); ctx.globalAlpha=1;
+  }
+  drawRuler(cv,viewStart,vspan,viewEnd){
+    const dpr=window.devicePixelRatio||1; const w=cv.clientWidth,h=cv.clientHeight; if(!w) return;
+    if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){ cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); }
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
+    const X=s=>(s-viewStart)/vspan*w; ctx.textBaseline='alphabetic'; const BIN=this.BIN, SD=this.sessionData;
+    ctx.fillStyle='#b8bec5'; ctx.strokeStyle='#e6e8ec'; ctx.font='9px "JetBrains Mono",monospace';
+    const s0=Math.ceil(viewStart/1000)*1000;
+    for(let s=s0;s<=viewEnd;s+=1000){ const x=X(s); ctx.beginPath(); ctx.moveTo(x,15); ctx.lineTo(x,h); ctx.stroke(); ctx.fillText((s/1000)+'s',x+3,20); }
+    // char cue at each trial's real cue-onset position
+    for(let g=0;g<SD.offs.length;g++){ const cueMs=SD.offs[g]*BIN; if(cueMs<viewStart-40||cueMs>viewEnd+14) continue; const cx=X(cueMs); if(cx<-14||cx>w+14) continue;
+      ctx.strokeStyle=this.acc(); ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,h); ctx.stroke();
+      ctx.fillStyle=this.acc(); ctx.font='700 9px "JetBrains Mono",monospace'; ctx.fillText(SD.chars[g], cx+3, 9); }
+  }
+
+  // ---------- selection ----------
+  cellRef(ch){ if(!this._cellRef[ch]) this._cellRef[ch]=el=>{ if(el)this.els.cell[ch]=el; else delete this.els.cell[ch]; }; return this._cellRef[ch]; }
+  canRef(key){ if(!this._canRef[key]) this._canRef[key]=el=>{ if(el)this.els.canvas[key]=el; else delete this.els.canvas[key]; }; return this._canRef[key]; }
+  // panel key: 'A1:5' follows the global condition/sweep; 'A1:5@ci#sw' is PINNED to its own condition+sweep
+  parseKey(key){ const at=key.indexOf('@'); const base=at<0?key:key.slice(0,at); const p=base.split(':');
+    if(at<0) return {aid:p[0],chs:p[1],ci:null,sw:null,pinned:false,base};
+    const rest=key.slice(at+1), h=rest.indexOf('#');
+    return {aid:p[0],chs:p[1],ci:+rest.slice(0,h),sw:+rest.slice(h+1),pinned:true,base}; }
+  pinKey(base,ci,sw){ return base+'@'+ci+'#'+sw; }
+  curCI(){ return this.isMeanCond()?-2:this.CONDS.indexOf(this.state.condition); }
+  curSW(){ return this.state.sweepMean?0:this.state.sweep; }
+  keyCI(key){ const k=this.parseKey(key); return k.pinned?k.ci:this.curCI(); }
+  keySW(key){ const k=this.parseKey(key); return k.pinned?k.sw:this.curSW(); }
+  hasPinned(){ return this.state.selected.some(k=>k.indexOf('@')>=0); }
+  ciLabel(ci){ if(ci===-2) return '∑ALL'; const n=this.CONDS[ci]; return this.CLABEL[n]||n; }
+  swLabel(sw){ return sw===0?'∑sw':('sw'+String(sw).padStart(2,'0')); }
+  keyFor(ch){ return this.state.arrayId+':'+ch; }
+  isSel(ch){ return this.state.selected.indexOf(this.keyFor(ch))>=0; }
+  setSel(list){ const uniq=[...new Set(list)]; this.setState({selected:uniq}); }
+  clearSel(){ this.setState({selected:[]}); }
+  gridDown(e){
+    if(this.state.playing) return;
+    const wrap=this.gridWrapEl, band=this.bandEl; if(!wrap) return;
+    const wr=wrap.getBoundingClientRect();
+    const sx=e.clientX, sy=e.clientY; let moved=false;
+    const startTarget=e.target.closest('[data-ch]');
+    const shift=e.shiftKey;
+    const move=(ev)=>{
+      if(Math.abs(ev.clientX-sx)+Math.abs(ev.clientY-sy)>4) moved=true;
+      if(!moved) return;
+      const x1=Math.min(sx,ev.clientX)-wr.left, y1=Math.min(sy,ev.clientY)-wr.top;
+      const x2=Math.max(sx,ev.clientX)-wr.left, y2=Math.max(sy,ev.clientY)-wr.top;
+      band.style.display='block'; band.style.left=x1+'px'; band.style.top=y1+'px'; band.style.width=(x2-x1)+'px'; band.style.height=(y2-y1)+'px';
+    };
+    const up=(ev)=>{
+      document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up);
+      band.style.display='none';
+      if(!moved){
+        if(!startTarget) return; const ch=+startTarget.getAttribute('data-ch'); if(ch<0) return;
+        const key=this.keyFor(ch); const cur=this.state.selected;
+        // click toggles/adds — accumulate non-adjacent electrodes across both arrays
+        this.setSel(cur.indexOf(key)>=0?cur.filter(k=>k!==key):[...cur,key]);
+      } else {
+        const bx1=Math.min(sx,ev.clientX), by1=Math.min(sy,ev.clientY), bx2=Math.max(sx,ev.clientX), by2=Math.max(sy,ev.clientY);
+        const hit=[];
+        for(let pos=0;pos<this.NPOS;pos++){ const ch=this.chAt(pos); if(ch<0) continue; const el=this.els.cell[pos]; if(!el) continue; const r=el.getBoundingClientRect();
+          if(r.left<bx2&&r.right>bx1&&r.top<by2&&r.bottom>by1) hit.push(this.keyFor(ch)); }
+        this.setSel([...this.state.selected,...hit]);
+      }
+    };
+    document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+  }
+  panelScrub(e){ if(this.state.playing) return; const r=e.currentTarget.getBoundingClientRect(); this.scrubTo((e.clientX-r.left)/r.width); }
+  panelHover(e){
+    const el=this.ptipEl; if(!el) return; const cv=e.currentTarget; const key=cv.getAttribute('data-pkey'); if(!key){ el.style.display='none'; return; }
+    const r=cv.getBoundingClientRect(); const w=r.width; if(!w){ el.style.display='none'; return; } const x=Math.max(0,Math.min(w,e.clientX-r.left));
+    const mode=this.state.viewMode, z=this.state.zscore, am=this.state.absMode; let bin, tstr, series;
+    if(this._view && this._view.mode==='session'){
+      const d=this.sessionData && this.sessionData.data[key]; if(!d){ el.style.display='none'; return; }
+      const ms=this._view.viewStart+(x/w)*this._view.vspan; bin=Math.max(0,Math.min(d.abs.length-1,Math.round(ms/this.BIN)));
+      tstr=(ms/1000).toFixed(2)+' s'; series=d;
+    } else {
+      const pd=this.panelData && this.panelData[key]; if(!pd){ el.style.display='none'; return; }
+      const wb=this.winBins(), s=wb[0], e2=wb[1]; bin=Math.max(0,Math.min(this.NB-1,Math.round(s+(x/w)*(e2-s))));
+      const ms=this.T0+bin*this.BIN; tstr=(ms>=0?'+':'−')+Math.abs(Math.round(ms))+' ms'; series=pd;
+    }
+    let val,unit;
+    if(mode==='absolute'){ val=(am==='wave'&&series.absBand)?series.absBand[bin]:((am==='smooth'&&series.absSmooth)?series.absSmooth[bin]:series.abs[bin]); unit=z?'z':'Hz'; }
+    else if(mode==='integral'){ val=series.integ[bin]; unit=z?'z·s':'spk'; }
+    else { val=series.diff[bin]; unit=z?'Δz':'Δ'; }
+    el.textContent=tstr+'  ·  '+(val>=0?'+':'')+val.toFixed(1)+' '+unit;
+    el.style.left=Math.min(e.clientX+14,window.innerWidth-170)+'px'; el.style.top=(e.clientY-30)+'px'; el.style.display='block';
+  }
+  panelHoverOut(){ if(this.ptipEl) this.ptipEl.style.display='none'; }
+
+  // ---------- panel ops ----------
+  // ---- drag a condition / sweep onto a panel to pin a comparison copy of it ----
+  dragPayload(e){ try{ return JSON.parse(e.dataTransfer.getData('text/plain')||'{}'); }catch(_){ return {}; } }
+  addPinned(base,ci,sw){
+    const nk=this.pinKey(base,ci,sw); const cur=this.state.selected;
+    if(cur.indexOf(nk)>=0) return;                       // already showing this exact combination
+    const at=cur.indexOf(base)>=0?cur.indexOf(base):cur.length-1;
+    const s=[...cur]; s.splice(at+1,0,nk); this.setState({selected:s});
+  }
+  dropOnPanel(e,key){
+    e.preventDefault(); e.stopPropagation();
+    const d=this.dragPayload(e); if(!d.kind) return;
+    const pk=this.parseKey(key);
+    const ci=d.kind==='cond'? d.ci : (pk.pinned?pk.ci:this.curCI());
+    const sw=d.kind==='sweep'? d.sw : (pk.pinned?pk.sw:this.curSW());
+    this.addPinned(pk.base,ci,sw);
+  }
+  dropOnArea(e){                                          // dropping below the panels uses the first selected trace
+    e.preventDefault();
+    const d=this.dragPayload(e); if(!d.kind||!this.state.selected.length) return;
+    const pk=this.parseKey(this.state.selected[0]);
+    const ci=d.kind==='cond'? d.ci : this.curCI();
+    const sw=d.kind==='sweep'? d.sw : this.curSW();
+    this.addPinned(pk.base,ci,sw);
+  }
+  dragStartCond(e,ci){ e.dataTransfer.setData('text/plain',JSON.stringify({kind:'cond',ci})); e.dataTransfer.effectAllowed='copy'; }
+  dragStartSweep(e,sw){ e.dataTransfer.setData('text/plain',JSON.stringify({kind:'sweep',sw})); e.dataTransfer.effectAllowed='copy'; }
+  // lock a graph to whatever it is showing now; a fresh live twin is left below so you can pick the next condition
+  toggleLock(key){
+    const pk=this.parseKey(key), cur=this.state.selected, i=cur.indexOf(key); if(i<0) return;
+    const s=[...cur];
+    if(pk.pinned){                                   // unlock: go back to following the selection
+      if(s.indexOf(pk.base)>=0) s.splice(i,1); else s[i]=pk.base;
+    } else {                                         // lock here, then drop a live copy underneath
+      const nk=this.pinKey(pk.base,this.curCI(),this.curSW());
+      if(s.indexOf(nk)>=0) return;
+      s[i]=nk; s.splice(i+1,0,pk.base);
+    }
+    this.setState({selected:s});
+  }
+  moveP(key,d){ const s=[...this.state.selected]; const i=s.indexOf(key); const j=i+d; if(j<0||j>=s.length) return; [s[i],s[j]]=[s[j],s[i]]; this.setState({selected:s}); }
+  removeP(key){ this.setState({selected:this.state.selected.filter(k=>k!==key)}); }
+  toggleCollapse(key){ const c={...this.state.collapsed}; c[key]=!c[key]; this.setState({collapsed:c}); }
+
+  // ---------- timeline drag ----------
+  tlFrac(clientX){ const r=this.tlTrackEl.getBoundingClientRect(); return Math.max(0,Math.min(1,(clientX-r.left)/r.width)); }
+  onTrackDown(e){ this.scrubTo(this.tlFrac(e.clientX)); const mv=ev=>this.scrubTo(this.tlFrac(ev.clientX)); const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);}; document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up); }
+  onStartDown(e){ e.stopPropagation(); const mv=ev=>{ const b=Math.round(this.tlFrac(ev.clientX)*(this.NB-1)); this.setState({winStart:Math.min(b,this.state.winEnd-1)}); }; const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);}; document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up); }
+  onEndDown(e){ e.stopPropagation(); const mv=ev=>{ const b=Math.round(this.tlFrac(ev.clientX)*(this.NB-1)); this.setState({winEnd:Math.max(b,this.state.winStart+1)}); }; const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);}; document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up); }
+
+  // ---------- styles ----------
+  segStyle(active){ const a=this.acc(); return {padding:'6px 11px',fontSize:'11.5px',fontWeight:600,border:'1px solid '+(active?a:'#e2e5ea'),background:active?'#e7f2f2':'#fff',color:active?a:'#5b616b',borderRadius:'7px',cursor:'pointer',whiteSpace:'nowrap',transition:'all .12s',fontFamily:'inherit'}; }
+  pillStyle(active){ const a=this.acc(); return {padding:'5px 9px',fontSize:'11px',fontWeight:600,border:'1px solid '+(active?a:'#e2e5ea'),background:active?'#e7f2f2':'#fff',color:active?a:'#5b616b',borderRadius:'6px',cursor:'pointer',fontFamily:'inherit'}; }
+  iconBtn(active){ const a=this.acc(); return {width:'30px',height:'30px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'14px',border:'1px solid '+(active?a:'#e2e5ea'),background:active?'#e7f2f2':'#fff',color:active?a:'#5b616b',borderRadius:'7px',cursor:'pointer',fontFamily:'JetBrains Mono,monospace',lineHeight:1}; }
+
+  renderVals(){
+    this.ensureComputed();
+    const st=this.state; const a=this.acc(); const ci=this.CONDS.indexOf(st.condition);
+    // participant profiles (SaaS avatar + dropdown)
+    const users=((this.MANIFEST&&this.MANIFEST.users)||[]).map(u=>{ const on=st.user===u.id;
+      return { id:u.id, short:u.id.toUpperCase(), full:u.label, sub:(u.sub||''),
+        onClick:()=>{ this.setState({profileOpen:false}); if(u.id!==st.user){ this.pause(); this.track('participant',{user:u.id}); this.loadUser(u.id); } },
+        rowStyle:{display:'flex',alignItems:'center',gap:'9px',padding:'7px 9px',borderRadius:'8px',cursor:'pointer',background:on?'#e7f2f2':'transparent',marginBottom:'2px'},
+        dotStyle:{width:'28px',height:'28px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'9.5px',fontWeight:700,color:'#fff',background:on?'linear-gradient(135deg,#0e7c86,#0a5c64)':'#b8bec5',fontFamily:'JetBrains Mono,monospace',flex:'0 0 auto',letterSpacing:'.01em'},
+        checkStyle:{color:a,fontWeight:700,fontSize:'12px',opacity:on?1:0,flex:'0 0 auto'} }; });
+    const profile={ open:st.profileOpen, initials:(st.user||'··').toUpperCase(), toggle:()=>this.setState({profileOpen:!st.profileOpen}),
+      ringStyle:{display:'flex',alignItems:'center',justifyContent:'center',width:'38px',height:'38px',borderRadius:'50%',border:'2px dashed '+a,background:'transparent',cursor:'pointer',padding:0,flex:'0 0 auto'},
+      dotStyle:{width:'28px',height:'28px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',fontWeight:700,color:'#fff',fontFamily:'JetBrains Mono,monospace',letterSpacing:'.02em',background:'linear-gradient(135deg,#0e7c86,#0a5c64)'},
+      menuStyle:{position:'absolute',top:'46px',left:'0',zIndex:50,width:'214px',background:'#fff',border:'1px solid #e2e5ea',borderRadius:'12px',boxShadow:'0 12px 34px rgba(16,24,40,.18)',padding:'6px'} };
+    // arrays
+    const arrays=this.ARRAYS.map(ar=>({label:ar.label,sub:ar.sub,onClick:()=>{ if(!st.playing&&ar.id!==st.arrayId){ this.track('array',{user:st.user,array:ar.id,label:ar.label}); this.setState({arrayId:ar.id}); } }, style:{flex:1,padding:'8px 6px',borderRadius:'6px',border:'none',cursor:st.playing?'default':'pointer',background:st.arrayId===ar.id?'#fff':'transparent',boxShadow:st.arrayId===ar.id?'0 1px 2px rgba(16,24,40,.12)':'none',color:st.arrayId===ar.id?'#1a1d23':'#8a9099',fontFamily:'inherit',textAlign:'center',opacity:st.playing?0.6:1}}));
+    // array population-mean panel toggle (current array)
+    const meanKey=st.arrayId+':mean'; const hasMean=st.selected.indexOf(meanKey)>=0;
+    const meanBtn={ label:(hasMean?'✓ mean trace · ':'＋ mean trace · ')+this.aLabel(st.arrayId),
+      onClick:()=>{ const cur=this.state.selected; this.setSel(cur.indexOf(meanKey)>=0?cur.filter(k=>k!==meanKey):[...cur,meanKey]); },
+      style:{width:'100%',marginTop:'7px',padding:'6px',fontSize:'11px',fontWeight:600,border:'1px solid '+(hasMean?a:'#e2e5ea'),background:hasMean?'#e7f2f2':'#fff',color:hasMean?a:'#5b616b',borderRadius:'7px',cursor:'pointer',fontFamily:'inherit'} };
+    // REST mode toggle — its own option (block-7 pre-cue no-cue segment)
+    const rm=this.RESTMETA;
+    const restBtn={ show:!!rm, label:(st.restMode?'✓ ':'◐ ')+'REST · block '+(rm?rm.block:'')+' ('+(rm?rm.durS:'')+'s)',
+      onClick:()=>{ this.pause(); this.playMs=0; this.setState({restMode:!st.restMode}); },
+      style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',width:'100%',padding:'9px',fontSize:'11.5px',fontWeight:700,letterSpacing:'.02em',border:'1px solid '+(st.restMode?a:'#e2e5ea'),background:st.restMode?'#e7f2f2':'#fff',color:st.restMode?a:'#5b616b',borderRadius:'8px',cursor:'pointer',fontFamily:'inherit'} };
+    // cells (10x10 array geometry; empty corners = no-contact)
+    const cells=[];
+    for(let pos=0;pos<this.NPOS;pos++){ const ch=this.chAt(pos); const nc=ch<0; const e=this.GEO[pos];
+      cells.push({ch:nc?-1:ch,label:nc?'':e,noContact:nc,selected:nc?false:this.isSel(ch),ref:this.cellRef(pos),
+        onEnter:(ev)=>{ if(this.state.playing||nc) return; this.setState({tip:{show:true,ch,x:ev.clientX,y:ev.clientY}}); },
+        onLeave:()=>{ if(this.state.tip.show) this.setState({tip:{show:false}}); },
+        style:{position:'relative',aspectRatio:'1/1',borderRadius:'3px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'8px',fontFamily:'JetBrains Mono,monospace',fontWeight:500,background:'#eef0f3',color:'#9aa0a8',cursor:st.playing?'default':'pointer',userSelect:'none',transition:'transform .08s'}}); }
+    // panels
+    const panels=st.selected.map((key,idx)=>{ const pk=this.parseKey(key); const aid=pk.aid, chs=pk.chs; const ch=+chs; const isMean=chs==='mean'; const pd=this.panelData[key]||{mean:0}; const coll=!!st.collapsed[key];
+      const alab=this.aLabel(aid); const eNum=(ch-this.aOff(aid))+1;
+      const tag=pk.pinned?('🔒 '+this.ciLabel(pk.ci)+' · '+this.swLabel(pk.sw)):'🔓 dynamic';
+      const tagTitle=pk.pinned?'Locked to this condition and sweep. Click to unlock and follow the selection again.'
+                              :'Dynamic: follows the current selection. Click to lock it here; a dynamic copy stays below so you can pick another condition and compare.';
+      return {key,chLabel:isMean?(aid+' · MEAN'):(aid+' · e'+eNum),area:isMean?(alab+' · '+this.APER+'-ch mean'):alab,mean:(pd.mean||0).toFixed(1)+(st.zscore?' z':' Hz'),open:!coll,collapsed:coll,chev:coll?'▸':'▾',
+        tag, tagTitle, onLock:()=>this.toggleLock(key),
+        tagStyle:{display:'block',width:'100%',marginTop:'3px',padding:'2px 5px',borderRadius:'4px',fontSize:'9px',fontWeight:700,fontFamily:'JetBrains Mono,monospace',
+          background:pk.pinned?'#efe7fb':'#eef0f3',color:pk.pinned?'#6b3fa0':'#9aa0a8',border:'1px solid '+(pk.pinned?'#d9c8f2':'#e6e8ec'),cursor:'pointer',textAlign:'left'},
+        onDragOver:(e)=>{ e.preventDefault(); }, onDrop:(e)=>this.dropOnPanel(e,key),
+        ref:this.canRef(key), onCollapse:()=>this.toggleCollapse(key), onUp:()=>this.moveP(key,-1), onDown:()=>this.moveP(key,1), onRemove:()=>this.removeP(key),
+        miniStyle:{width:'20px',height:'18px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',border:'1px solid #e2e5ea',background:'#fff',color:'#9aa0a8',borderRadius:'4px',cursor:'pointer',padding:0,lineHeight:1,fontFamily:'JetBrains Mono,monospace'}}; });
+    // modes
+    const modeDefs=[['absolute','Absolute'],['integral','1 s integral'],['differential','Differential']];
+    const modes=modeDefs.map(([id,label])=>({label,onClick:()=>{ this.track('view',{user:st.user,mode:id}); this.setState({viewMode:id}); },style:this.segStyle(st.viewMode===id)}));
+    const sources=[['rate','Rate'],['diff','Δ change']].map(([id,label])=>({label,onClick:()=>this.setState({liveSource:id}),style:this.pillStyle(st.liveSource===id)}));
+    const absToggle={dot:st.showAbs?'●':'○',onClick:()=>this.setState({showAbs:!st.showAbs}),style:this.pillStyle(st.showAbs)};
+    const zToggle={dot:st.zscore?'●':'○',onClick:()=>this.setState({zscore:!st.zscore}),style:this.pillStyle(st.zscore)};
+    // smoothing control (absolute-only): Off / Slow waves (3–10 s) / Smoothing (σ=40 ms)
+    const smEnabled=st.viewMode==='absolute';
+    const smoothCtl={ enabled:smEnabled, open:st.smoothOpen, dot:st.absMode!=='off'?'●':'○',
+      label: st.absMode==='wave'?'slow waves':(st.absMode==='smooth'?'smoothing':'smoothing'),
+      btnStyle:{...this.pillStyle(st.absMode!=='off'&&smEnabled), opacity:smEnabled?1:0.4, cursor:smEnabled?'pointer':'default', display:'flex', alignItems:'center', gap:'5px'},
+      toggle:()=>{ if(smEnabled) this.setState({smoothOpen:!st.smoothOpen}); },
+      menuStyle:{position:'absolute',top:'32px',right:'0',zIndex:60,width:'204px',background:'#fff',border:'1px solid #e2e5ea',borderRadius:'10px',boxShadow:'0 10px 30px rgba(16,24,40,.16)',padding:'5px'},
+      items:[['off','Off','raw trace'],['wave','Slow waves','3–10 sec waves filter'],['smooth','Smoothing','Gaussian kernel σ = 40 ms']].map(([key,name,sub])=>{ const on=st.absMode===key;
+        return { key,name,sub,on, onClick:()=>this.setState({absMode:key,smoothOpen:false}),
+          rowStyle:{display:'flex',alignItems:'flex-start',gap:'8px',padding:'6px 8px',borderRadius:'7px',cursor:'pointer',background:on?'#e7f2f2':'transparent'},
+          checkStyle:{color:a,fontWeight:700,fontSize:'12px',opacity:on?1:0,marginLeft:'auto',lineHeight:'1.5'} }; }) };
+    // transport
+    const transport={
+      playLabel:st.playing?'❚❚':'▶', playStyle:{...this.iconBtn(st.playing),width:'38px',background:st.playing?a:'#0e7c86',color:'#fff',border:'1px solid '+a,fontSize:st.playing?'11px':'12px'},
+      togglePlay:()=>this.togglePlay(), stepBack:()=>this.step(-1), stepFwd:()=>this.step(1), stop:()=>this.stop(), toggleLoop:()=>this.setState({loop:!st.loop}),
+      stepBackStyle:this.iconBtn(false), stepFwdStyle:this.iconBtn(false), stopStyle:this.iconBtn(false), loopStyle:this.iconBtn(st.loop)
+    };
+    const speeds=[['0.25','0.25×',0.25],['1','1×',1],['2','2×',2]].map(([id,label,v])=>({label,onClick:()=>this.setState({speed:v}),style:this.pillStyle(st.speed===v)}));
+    // timeline geometry — the track IS this sweep's real epoch; shade the (variable) prepare/HOLD span
+    const cueFrac=Math.max(0,this.msToFrac(this.curDelayMs())), goF=this.goFrac();
+    const fmtMs=v=>(v>=0?'+':'−')+Math.abs(Math.round(v))+' ms';
+    const tl={
+      onTrackDown:e=>this.onTrackDown(e), onStartDown:e=>this.onStartDown(e), onEndDown:e=>this.onEndDown(e),
+      windowStyle: (st.restMode||this.isMeanCond()||st.sweepMean) ? {display:'none'} : {position:'absolute',top:0,bottom:0,left:(cueFrac*100).toFixed(2)+'%',width:(Math.max(0,goF-cueFrac)*100).toFixed(2)+'%',background:'rgba(229,72,77,.09)',borderLeft:'1px solid rgba(229,72,77,.5)',pointerEvents:'none'},
+      goStyle: st.restMode ? {display:'none'} : {position:'absolute',top:0,bottom:0,left:(goF*100).toFixed(2)+'%',width:'1px',background:'rgba(14,124,134,.6)',pointerEvents:'none'},
+      startHandleStyle:{display:'none'}, endHandleStyle:{display:'none'}
+    };
+    const tlLo=st.restMode?'0 s':fmtMs(this.winStartMs()), tlHi=st.restMode?((this.REST_MS/1000).toFixed(0)+' s'):fmtMs(this.winEndMs());
+    const prepMs=Math.round(0-this.curDelayMs());
+    const ruler={ lo:tlLo, hi:tlHi,
+      cueStyle:{position:'absolute',left:(cueFrac*100).toFixed(2)+'%',top:'5px',transform:'translateX(-50%)',color:'#e5484d',fontWeight:600},
+      goStyle:{position:'absolute',left:(goF*100).toFixed(2)+'%',top:'5px',transform:'translateX(-50%)',color:'#0e7c86',fontWeight:600} };
+    // conditions
+    const condStyle=(on)=>({display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 11px',marginBottom:'4px',borderRadius:'7px',cursor:'pointer',border:'1px solid '+(on?a:'transparent'),background:on?'#e7f2f2':'#fff',boxShadow:on?'none':'0 1px 1px rgba(16,24,40,.03)',color:on?a:'#3b4048'});
+    const meanRow={ name:'∑ mean · all conditions', count:this.CONDS.length+' cond', ref:this.condRef(this.MEANKEY), onClick:()=>this.setState({condition:this.MEANKEY,restMode:false}),
+      onDragStart:(e)=>this.dragStartCond(e,-2), style:{...condStyle(this.isMeanCond()),fontWeight:700,marginBottom:'7px'} };
+    const conditions=[meanRow].concat(this.CONDS.map((name,ci)=>({name:this.CLABEL[name]||name,count:this.SWEEPS+' trials',ref:this.condRef(name),onClick:()=>{ this.track('condition',{user:st.user,cond:name}); this.setState({condition:name,restMode:false}); },
+      onDragStart:(e)=>this.dragStartCond(e,ci),style:condStyle(st.condition===name)})));
+    // sweeps
+    const sweeps=[]; for(let n=1;n<=this.SWEEPS;n++){ const act=n===st.sweep&&!st.sweepMean; sweeps.push({n,ref:this.sweepBtnRef(n),onClick:()=>this.setState({sweep:n,restMode:false,sweepMean:false}),
+      onDragStart:(e)=>this.dragStartSweep(e,n),style:{padding:'6px 0',fontSize:'11px',fontWeight:600,fontFamily:'JetBrains Mono,monospace',border:'1px solid '+(act?a:'#e6e8ec'),background:act?a:'#fff',color:act?'#fff':'#6b7280',borderRadius:'5px',cursor:'pointer',opacity:st.sweepMean?0.5:1}}); }
+    const sweepMeanBtn={ label:(st.sweepMean?'✓ ':'＋ ')+'∑ mean · all '+this.SWEEPS+' sweeps',
+      onClick:()=>{ this.pause(); this.setState({sweepMean:!st.sweepMean, restMode:false, autoAdvance:false}); },
+      style:{width:'100%',padding:'8px 10px',marginTop:'8px',fontSize:'11.5px',fontWeight:700,fontFamily:'JetBrains Mono,monospace',border:'1px solid '+(st.sweepMean?a:'#d7dbe0'),background:st.sweepMean?'#e7f2f2':'#fff',color:st.sweepMean?a:'#4a5058',borderRadius:'7px',cursor:'pointer',textAlign:'left'} };
+    const sweepNav={label:String(st.sweep).padStart(2,'0')+' / '+this.SWEEPS,prev:()=>st.autoAdvance?this.nudgeTrial(-1):this.nudgeSweep(-1),next:()=>st.autoAdvance?this.nudgeTrial(1):this.nudgeSweep(1),prevStyle:this.iconBtn(false),nextStyle:this.iconBtn(false)};
+    // session replay
+    const total=this.sessionTotal(); const tIdx=this.trialIndexOf(st.condition,st.sweep); const tPct=(tIdx+1)/total*100;
+    const session={ onClick:()=>this.setState({autoAdvance:!st.autoAdvance,restMode:false}), label:(st.autoAdvance?'⟳  Session order · ON':'⟳  Play in session order'),
+      trialLabel:'trial '+(tIdx+1)+' / '+total,
+      style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',width:'100%',padding:'7px',fontSize:'11px',fontWeight:600,border:'1px solid '+(st.autoAdvance?a:'#e2e5ea'),background:st.autoAdvance?'#e7f2f2':'#fff',color:st.autoAdvance?a:'#5b616b',borderRadius:'7px',cursor:'pointer',fontFamily:'inherit'},
+      barStyle:{height:'100%',width:tPct+'%',background:a,borderRadius:'3px',transition:'width .25s'} };
+    // legend
+    const grad=(this.props.colormap==='inferno')?'linear-gradient(90deg,#000004,#420a68,#932667,#dd513a,#fca50a,#fcffa4)':'linear-gradient(90deg,#440154,#414487,#2a788e,#22a884,#7ad151,#fde725)';
+    const gm=this.gridMax();
+    const legend=st.liveSource==='rate'
+      ? {title:'Firing rate',unit:'Hz',lo:'0',mid:(gm/2).toFixed(0),hi:gm.toFixed(0),barStyle:{height:'12px',borderRadius:'4px',background:grad,border:'1px solid #e2e5ea'}}
+      : {title:'Δ rate / bin',unit:'Hz',lo:'−'+(gm*0.28).toFixed(0),mid:'0',hi:'+'+(gm*0.28).toFixed(0),barStyle:{height:'12px',borderRadius:'4px',background:'linear-gradient(90deg,#2166ac,#f7f7f7,#b2182b)',border:'1px solid #e2e5ea'}};
+    // selection footer
+    const selCount=st.selected.length; const selWord=selCount===1?'electrode':'electrodes';
+    const clearStyle={padding:'6px 12px',fontSize:'11px',fontWeight:600,border:'1px solid #e2e5ea',background:'#fff',color:selCount?'#e5484d':'#c0c4cb',borderRadius:'6px',cursor:selCount?'pointer':'default',fontFamily:'inherit'};
+    // grid wrap
+    const gridWrapStyle={position:'relative',display:'grid',gridTemplateColumns:'repeat('+this.COLS+',1fr)',gap:'3px',padding:'3px',background:'#fff',border:'1px solid #e2e5ea',borderRadius:'8px',boxShadow:'0 1px 2px rgba(16,24,40,.04)',pointerEvents:st.playing?'none':'auto',userSelect:'none'};
+    const liveBadgeStyle={position:'absolute',top:'8px',right:'8px',zIndex:10,display:st.playing?'flex':'none',alignItems:'center',gap:'5px',padding:'3px 8px',background:'rgba(20,22,28,.82)',color:'#fff',fontSize:'9.5px',fontWeight:700,letterSpacing:'.08em',borderRadius:'5px',fontFamily:'JetBrains Mono,monospace'};
+    // center subtitle
+    const modeLabel={absolute:'Absolute PSTH',integral:'1 s sliding integral',differential:'Relative / differential'}[st.viewMode];
+    const centerSub=st.restMode
+      ? (selCount+' electrode'+(selCount===1?'':'s')+' · '+modeLabel+' · REST · block '+(rm?rm.block:'')+' pre-cue · '+(rm?rm.durS:'')+'s continuous')
+      : this.isMeanCond()
+      ? (selCount+' electrode'+(selCount===1?'':'s')+' · '+modeLabel+' · grand mean · all '+this.CONDS.length+' conditions (go-aligned)')
+      : selCount+' electrode'+(selCount===1?'':'s')+' · '+modeLabel
+        +(st.autoAdvance?' · session order':'')+' · cue "'+(this.CCUE[st.condition]||st.condition)+'" · '
+        +(st.sweepMean?('sweep average · all '+this.SWEEPS+' sweeps (go-aligned)'):('sweep '+String(st.sweep).padStart(2,'0')+'/'+this.SWEEPS));
+    // tooltip
+    let tip={show:false,chLabel:'',area:'',mean:''};
+    // gridData is null while a participant's cube loads, and a hovered channel from the
+    // previous participant can be out of range for the new one (256 ch -> 128 ch).
+    const tipArr=(st.tip.show&&this.gridData&&this.gridData.abs)?this.gridData.abs[st.tip.ch]:null;
+    if(tipArr){ const ch=st.tip.ch; const arr=tipArr; let mn=0,mx=1; for(let i=0;i<this.NB;i++){mn+=arr[i];mx=Math.max(mx,arr[i]);} mn/=this.NB;
+      let pts=''; for(let i=0;i<this.NB;i++){ const x=i/(this.NB-1)*150; const y=32-(arr[i]/mx)*30; pts+=x.toFixed(1)+','+y.toFixed(1)+' '; }
+      tip={show:true,chLabel:st.arrayId+' · e'+((ch-this.aOff(st.arrayId))+1),area:this.aLabel(st.arrayId),mean:mn.toFixed(1)+' Hz',spark:pts.trim(),
+        style:{position:'fixed',left:Math.min(st.tip.x+14,window.innerWidth-190)+'px',top:(st.tip.y+14)+'px',zIndex:100,background:'#1a1d23',color:'#fff',padding:'10px 12px',borderRadius:'8px',boxShadow:'0 6px 24px rgba(16,24,40,.28)',pointerEvents:'none',width:'174px'}}; }
+
+    this._spark = tip.spark || null;
+    return {
+      arrays, meanBtn, cells, panels, modes, sources, absToggle, zToggle, smoothCtl, transport, speeds, tl, tlLo, tlHi, tlMid:(st.restMode?'block 7 rest':(st.autoAdvance?'session':'cue → GO')), ruler, conditions, sweeps, sweepNav, sweepMeanBtn, session, legend, rSpark:this.rSpark,
+      rCondScroll:this.rCondScroll, rSweepScroll:this.rSweepScroll,
+      selCount, selWord, clearSel:()=>this.clearSel(), clearStyle,
+      gridDown:this.gridDown, panelScrub:this.panelScrub, panelHover:this.panelHover, panelHoverOut:this.panelHoverOut, rPtip:this.rPtip, gridWrapStyle, liveBadgeStyle,
+      areaDragOver:(e)=>e.preventDefault(), areaDrop:(e)=>this.dropOnArea(e),
+      hasPanels:selCount>0, noPanels:selCount===0, centerSub,
+      notAuto:!(st.autoAdvance||st.restMode), autoAdv:(st.autoAdvance||st.restMode), rRuler:this.rRuler, rulerLabel:st.restMode?'rest · s':(st.autoAdvance?'session · s':'ms · cue'),
+      cueWord:st.restMode?'REST':(this.isMeanCond()?'∑':(this.CCUE[st.condition]||st.condition)), tip, restBtn, users, profile,
+      brandSub:(this.SESSMETA?(this.SESSMETA.label+' · '+this.SESSMETA.sub):'loading…'),
+      rTime:this.rTime,rBin:this.rBin,rTlTrack:this.rTlTrack,rTlPlay:this.rTlPlay,rGridWrap:this.rGridWrap,rBand:this.rBand,
+      rPanelsWrap:this.rPanelsWrap,rPlayhead:this.rPlayhead,rCueRed:this.rCueRed,rCueGreen:this.rCueGreen,rCueState:this.rCueState
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# generated from index.dc.html (cp on start; see setup.sh)
+index.html
+
+# generated data — fetched by setup.sh from the release asset, or rebuilt with
+# tools/build_site_data.py. Nothing under data/ is committed.
+data/
+
+# raw source datasets, if unpacked in-tree for --from-raw
+raw/
+
+# python / node / os
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+.DS_Store

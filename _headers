@@ -1,0 +1,18 @@
+# Cloudflare Pages header rules.
+# The .u8.gz cubes are content-addressed by the release they came from and never change
+# in place, so they can cache hard. The app itself must not, or a deploy appears to do
+# nothing until someone force-reloads.
+
+/data/*
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/support.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
