@@ -1,0 +1,14 @@
+[Unit]
+Description=Neural Spiking Explorer Cloudflare quick tunnel
+After=nse-web.service
+Wants=nse-web.service
+
+[Service]
+ExecStartPre=/bin/sh -c ': > /tmp/nse_cf.log'
+ExecStart=/home/ubuntu/.local/bin/cloudflared tunnel --url http://127.0.0.1:8099 --no-autoupdate --logfile /tmp/nse_cf.log
+ExecStartPost=/bin/bash /home/ubuntu/b/scripts/nse_geturl.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

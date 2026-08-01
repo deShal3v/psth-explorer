@@ -1,0 +1,13 @@
+[Unit]
+Description=Neural Spiking Explorer static server (gzip)
+After=default.target
+
+[Service]
+# refresh the servable copy from the design source, then serve
+ExecStartPre=/bin/cp /home/ubuntu/b/site/index.dc.html /home/ubuntu/b/site/index.html
+ExecStart=/usr/bin/python3 /home/ubuntu/b/scripts/serve_gz.py 8099 /home/ubuntu/b/site
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target

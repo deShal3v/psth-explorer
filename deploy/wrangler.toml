@@ -1,0 +1,9 @@
+name = "nse-analytics"
+main = "analytics-worker.js"
+compatibility_date = "2026-08-01"
+
+# Analytics Engine is the free, high-write-rate store behind this. The binding name
+# NSE_EVENTS is what the Worker writes to; nse_events is the dataset you query with SQL.
+[[analytics_engine_datasets]]
+binding = "NSE_EVENTS"
+dataset = "nse_events"
